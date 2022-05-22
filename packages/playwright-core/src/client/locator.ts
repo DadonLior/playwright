@@ -29,11 +29,6 @@ import { escapeWithQuotes } from '../utils/isomorphic/stringUtils';
 export type LocatorOptions = {
   hasText?: string | RegExp;
   has?: Locator;
-  leftOf?: Locator | { locator: Locator, maxDistance?: number };
-  rightOf?: Locator | { locator: Locator, maxDistance?: number };
-  above?: Locator | { locator: Locator, maxDistance?: number };
-  below?: Locator | { locator: Locator, maxDistance?: number };
-  near?: Locator | { locator: Locator, maxDistance?: number };
 };
 
 export class Locator implements api.Locator {
@@ -53,29 +48,10 @@ export class Locator implements api.Locator {
     }
 
     if (options?.has) {
-      if (options.has._frame !== frame)
-        throw new Error(`Inner "has" locator must belong to the same frame.`);
-      this._selector += ` >> has=` + JSON.stringify(options.has._selector);
-    }
-
-    for (const inner of ['leftOf', 'rightOf', 'above', 'below', 'near'] as const) {
-      const value = options?.[inner];
-      if (!value)
-        continue;
-      let maxDistance: number | undefined;
-      let locator: Locator;
-      if (value instanceof Locator) {
-        locator = value;
-      } else {
-        locator = value.locator;
-        maxDistance = value.maxDistance;
-      }
+      const locator = options.has;
       if (locator._frame !== frame)
-        throw new Error(`Inner "${inner}" locator must belong to the same frame.`);
-      if (maxDistance !== undefined && typeof maxDistance !== 'number')
-        throw new Error(`"${inner}.maxDistance" must be a number, found ${typeof maxDistance}.`);
-      const engineName = inner === 'leftOf' ? 'left-of' : (inner === 'rightOf' ? 'right-of' : inner);
-      this._selector += ` >> ${engineName}=` + JSON.stringify(locator._selector) + (maxDistance === undefined ? '' : ',' + maxDistance);
+        throw new Error(`Inner "has" locator must belong to the same frame.`);
+      this._selector += ` >> has=` + JSON.stringify(locator._selector);
     }
   }
 
@@ -160,7 +136,7 @@ export class Locator implements api.Locator {
     return new FrameLocator(this._frame, this._selector + ' >> ' + selector);
   }
 
-  that(options?: LocatorOptions): Locator {
+  filter(options?: LocatorOptions): Locator {
     return new Locator(this._frame, this._selector, options);
   }
 
@@ -300,8 +276,7 @@ export class Locator implements api.Locator {
   async _expect(customStackTrace: ParsedStackTrace, expression: string, options: Omit<FrameExpectOptions, 'expectedValue'> & { expectedValue?: any }): Promise<{ matches: boolean, received?: any, log?: string[] }> {
     return this._frame._wrapApiCall(async () => {
       const params: channels.FrameExpectParams = { selector: this._selector, expression, ...options, isNot: !!options.isNot };
-      if (options.expectedValue)
-        params.expectedValue = serializeArgument(options.expectedValue);
+      params.expectedValue = serializeArgument(options.expectedValue);
       const result = (await this._frame._channel.expect(params));
       if (result.received !== undefined)
         result.received = parseResult(result.received);

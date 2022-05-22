@@ -21,8 +21,9 @@ import { VueEngine } from './vueSelectorEngine';
 import { RoleEngine } from './roleSelectorEngine';
 import type { NestedSelectorBody, ParsedSelector, ParsedSelectorPart } from '../isomorphic/selectorParser';
 import { allEngineNames, parseSelector, stringifySelector } from '../isomorphic/selectorParser';
-import type { TextMatcher } from './selectorEvaluator';
-import { SelectorEvaluatorImpl, isVisible, parentElementOrShadowHost, elementMatchesText, createRegexTextMatcher, createStrictTextMatcher, createLaxTextMatcher } from './selectorEvaluator';
+import { type TextMatcher, elementMatchesText, createRegexTextMatcher, createStrictTextMatcher, createLaxTextMatcher } from './selectorUtils';
+import { SelectorEvaluatorImpl } from './selectorEvaluator';
+import { isElementVisible, parentElementOrShadowHost } from './domUtils';
 import type { CSSComplexSelectorList } from '../isomorphic/cssParser';
 import { generateSelector } from './selectorGenerator';
 import type * as channels from '../../protocol/channels';
@@ -103,11 +104,6 @@ export class InjectedScript {
     this._engines.set('visible', this._createVisibleEngine());
     this._engines.set('control', this._createControlEngine());
     this._engines.set('has', this._createHasEngine());
-    this._engines.set('left-of', { queryAll: () => [] });
-    this._engines.set('right-of', { queryAll: () => [] });
-    this._engines.set('above', { queryAll: () => [] });
-    this._engines.set('below', { queryAll: () => [] });
-    this._engines.set('near', { queryAll: () => [] });
 
     for (const { name, engine } of customEngines)
       this._engines.set(name, engine);
@@ -253,7 +249,7 @@ export class InjectedScript {
         // TODO: replace contains() with something shadow-dom-aware?
         if (kind === 'lax' && lastDidNotMatchSelf && lastDidNotMatchSelf.contains(element))
           return false;
-        const matches = elementMatchesText(this._evaluator, element, matcher);
+        const matches = elementMatchesText(this._evaluator._cacheText, element, matcher);
         if (matches === 'none')
           lastDidNotMatchSelf = element;
         if (matches === 'self' || (matches === 'selfAndChildren' && kind === 'strict'))
@@ -301,7 +297,7 @@ export class InjectedScript {
     const queryAll = (root: SelectorRoot, body: string) => {
       if (root.nodeType !== 1 /* Node.ELEMENT_NODE */)
         return [];
-      return isVisible(root as Element) === Boolean(body) ? [root as Element] : [];
+      return isElementVisible(root as Element) === Boolean(body) ? [root as Element] : [];
     };
     return { queryAll };
   }
@@ -327,7 +323,7 @@ export class InjectedScript {
   }
 
   isVisible(element: Element): boolean {
-    return isVisible(element);
+    return isElementVisible(element);
   }
 
   pollRaf<T>(predicate: Predicate<T>): InjectedScriptPoll<T> {
@@ -678,7 +674,7 @@ export class InjectedScript {
 
     const activeElement = (node.getRootNode() as (Document | ShadowRoot)).activeElement;
     const wasFocused = activeElement === node && node.ownerDocument && node.ownerDocument.hasFocus();
-    if (!wasFocused && activeElement && (activeElement as HTMLElement | SVGElement).blur) {
+    if ((node as HTMLElement).isContentEditable && !wasFocused && activeElement && (activeElement as HTMLElement | SVGElement).blur) {
       // Workaround the Firefox bug where focusing the element does not switch current
       // contenteditable to the new element. However, blurring the previous one helps.
       (activeElement as HTMLElement | SVGElement).blur();
@@ -720,15 +716,15 @@ export class InjectedScript {
   }
 
   checkHitTargetAt(node: Node, point: { x: number, y: number }): 'error:notconnected' | 'done' | { hitTargetDescription: string } {
-    let element: Element | null | undefined = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+    const element: Element | null | undefined = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
     if (!element || !element.isConnected)
       return 'error:notconnected';
-    element = element.closest('button, [role=button]') || element;
     const hitElement = this.deepElementFromPoint(document, point.x, point.y);
     return this._expectHitTargetParent(hitElement, element);
   }
 
   private _expectHitTargetParent(hitElement: Element | undefined, targetElement: Element) {
+    targetElement = targetElement.closest('button, [role=button], a, [role=link]') || targetElement;
     const hitParents: Element[] = [];
     while (hitElement && hitElement !== targetElement) {
       hitParents.push(hitElement);
@@ -757,10 +753,9 @@ export class InjectedScript {
   }
 
   setupHitTargetInterceptor(node: Node, action: 'hover' | 'tap' | 'mouse', blockAllEvents: boolean): HitTargetInterceptionResult | 'error:notconnected' {
-    const maybeElement: Element | null | undefined = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
-    if (!maybeElement || !maybeElement.isConnected)
+    const element: Element | null | undefined = node.nodeType === Node.ELEMENT_NODE ? (node as Element) : node.parentElement;
+    if (!element || !element.isConnected)
       return 'error:notconnected';
-    const element = maybeElement.closest('button, [role=button]') || maybeElement;
 
     const events = {
       'hover': kHoverHitTargetInterceptorEvents,

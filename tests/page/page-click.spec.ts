@@ -251,6 +251,18 @@ it('should scroll and click the button', async ({ page, server }) => {
   expect(await page.evaluate(() => document.querySelector('#button-80').textContent)).toBe('clicked');
 });
 
+it('should scroll and click the button with smooth scroll behavior', async ({ page, server }) => {
+  it.info().annotations.push({ type: 'issue', description: 'https://github.com/microsoft/playwright/issues/12370' });
+  await page.goto(server.PREFIX + '/input/scrollable.html');
+  await page.addStyleTag({ content: 'html { scroll-behavior: smooth; }' });
+  for (let i = 0; i < 10; i++) {
+    await page.click('#button-80');
+    expect(await page.evaluate(() => document.querySelector('#button-80').textContent)).toBe('clicked');
+    await page.click('#button-20');
+    expect(await page.evaluate(() => document.querySelector('#button-20').textContent)).toBe('clicked');
+  }
+});
+
 it('should double click the button', async ({ page, server }) => {
   await page.goto(server.PREFIX + '/input/button.html');
   await page.evaluate(() => {
@@ -596,6 +608,19 @@ it('should climb dom for inner label with pointer-events:none', async ({ page })
 it('should climb up to [role=button]', async ({ page }) => {
   await page.setContent('<div role=button onclick="javascript:window.__CLICKED=true;"><div style="pointer-events:none"><span><div>Click target</div></span></div>');
   await page.click('text=Click target');
+  expect(await page.evaluate('__CLICKED')).toBe(true);
+});
+
+it('should climb up to a anchor', async ({ page }) => {
+  // For Firefox its not allowed to return anything: https://bugzilla.mozilla.org/show_bug.cgi?id=1392046
+  await page.setContent(`<a href="javascript:(function(){window.__CLICKED=true})()" id="outer"><div id="inner" style="pointer-events: none">Inner</div></a>`);
+  await page.click('#inner');
+  expect(await page.evaluate('__CLICKED')).toBe(true);
+});
+
+it('should climb up to a [role=link]', async ({ page }) => {
+  await page.setContent(`<div role=link onclick="javascript:window.__CLICKED=true;" id="outer"><div id="inner" style="pointer-events: none">Inner</div></div>`);
+  await page.click('#inner');
   expect(await page.evaluate('__CLICKED')).toBe(true);
 });
 

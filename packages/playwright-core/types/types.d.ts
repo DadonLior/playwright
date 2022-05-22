@@ -2613,50 +2613,14 @@ export interface Page {
    * element immediately before performing an action, so a series of actions on the same locator can in fact be performed on
    * different DOM elements. That would happen if the DOM structure between those actions has changed.
    *
+   * [Learn more about locators](https://playwright.dev/docs/locators).
+   *
    * Shortcut for main frame's
    * [frame.locator(selector[, options])](https://playwright.dev/docs/api/class-frame#frame-locator).
    * @param selector A selector to use when resolving DOM element. See [working with selectors](https://playwright.dev/docs/selectors) for more details.
    * @param options
    */
   locator(selector: string, options?: {
-    /**
-     * Matches elements that are above any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    above?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are below any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    below?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
     /**
      * Matches elements containing an element that matches an inner locator. Inner locator is queried against the outer one.
      * For example, `article` that has `text=Playwright` matches `<article><div>Playwright</div></article>`.
@@ -2671,62 +2635,6 @@ export interface Page {
      * `<article><div>Playwright</div></article>`.
      */
     hasText?: string|RegExp;
-
-    /**
-     * Matches elements that are to the left of any element matching the inner locator, at any vertical position. Inner locator
-     * is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    leftOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are near any of the elements matching the inner locator. Inner locator is queried against the same
-     * root as the outer one. More details in [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    near?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum distance between the elements in pixels, 50 by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are to the right of any element matching the inner locator, at any vertical position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    rightOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
   }): Locator;
 
   /**
@@ -5533,48 +5441,12 @@ export interface Frame {
    * The method returns an element locator that can be used to perform actions in the frame. Locator is resolved to the
    * element immediately before performing an action, so a series of actions on the same locator can in fact be performed on
    * different DOM elements. That would happen if the DOM structure between those actions has changed.
+   *
+   * [Learn more about locators](https://playwright.dev/docs/locators).
    * @param selector A selector to use when resolving DOM element. See [working with selectors](https://playwright.dev/docs/selectors) for more details.
    * @param options
    */
   locator(selector: string, options?: {
-    /**
-     * Matches elements that are above any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    above?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are below any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    below?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
     /**
      * Matches elements containing an element that matches an inner locator. Inner locator is queried against the outer one.
      * For example, `article` that has `text=Playwright` matches `<article><div>Playwright</div></article>`.
@@ -5589,62 +5461,6 @@ export interface Frame {
      * `<article><div>Playwright</div></article>`.
      */
     hasText?: string|RegExp;
-
-    /**
-     * Matches elements that are to the left of any element matching the inner locator, at any vertical position. Inner locator
-     * is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    leftOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are near any of the elements matching the inner locator. Inner locator is queried against the same
-     * root as the outer one. More details in [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    near?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum distance between the elements in pixels, 50 by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are to the right of any element matching the inner locator, at any vertical position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    rightOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
   }): Locator;
 
   /**
@@ -8386,7 +8202,9 @@ export interface ElementHandle<T=Node> extends JSHandle<T> {
     /**
      * When set to `"css"`, screenshot will have a single pixel per each css pixel on the page. For high-dpi devices, this will
      * keep screenshots small. Using `"device"` option will produce a single pixel per each device pixel, so screenhots of
-     * high-dpi devices will be twice as large or even larger. Defaults to `"device"`.
+     * high-dpi devices will be twice as large or even larger.
+     *
+     * Defaults to `"device"`.
      */
     scale?: "css"|"device";
 
@@ -9362,6 +9180,27 @@ export interface Locator {
   }): Promise<void>;
 
   /**
+   * This method narrows existing locator according to the options, for example filters by text.
+   * @param options
+   */
+  filter(options?: {
+    /**
+     * Matches elements containing an element that matches an inner locator. Inner locator is queried against the outer one.
+     * For example, `article` that has `text=Playwright` matches `<article><div>Playwright</div></article>`.
+     *
+     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
+     */
+    has?: Locator;
+
+    /**
+     * Matches elements containing specified text somewhere inside, possibly in a child or a descendant element. When passed a
+     * [string], matching is case-insensitive and searches for a substring. For example, `"Playwright"` matches
+     * `<article><div>Playwright</div></article>`.
+     */
+    hasText?: string|RegExp;
+  }): Locator;
+
+  /**
    * Returns locator to the first matching element.
    */
   first(): Locator;
@@ -9600,49 +9439,12 @@ export interface Locator {
   last(): Locator;
 
   /**
-   * The method finds an element matching the specified selector in the `Locator`'s subtree.
+   * The method finds an element matching the specified selector in the `Locator`'s subtree. It also accepts filter options,
+   * similar to [locator.filter([options])](https://playwright.dev/docs/api/class-locator#locator-filter) method.
    * @param selector A selector to use when resolving DOM element. See [working with selectors](https://playwright.dev/docs/selectors) for more details.
    * @param options
    */
   locator(selector: string, options?: {
-    /**
-     * Matches elements that are above any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    above?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are below any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    below?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
     /**
      * Matches elements containing an element that matches an inner locator. Inner locator is queried against the outer one.
      * For example, `article` that has `text=Playwright` matches `<article><div>Playwright</div></article>`.
@@ -9657,62 +9459,6 @@ export interface Locator {
      * `<article><div>Playwright</div></article>`.
      */
     hasText?: string|RegExp;
-
-    /**
-     * Matches elements that are to the left of any element matching the inner locator, at any vertical position. Inner locator
-     * is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    leftOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are near any of the elements matching the inner locator. Inner locator is queried against the same
-     * root as the outer one. More details in [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    near?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum distance between the elements in pixels, 50 by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are to the right of any element matching the inner locator, at any vertical position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    rightOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
   }): Locator;
 
   /**
@@ -10088,121 +9834,6 @@ export interface Locator {
      */
     timeout?: number;
   }): Promise<null|string>;
-
-  /**
-   * This method narrows existing locator according to the options, for example filters by text.
-   * @param options
-   */
-  that(options?: {
-    /**
-     * Matches elements that are above any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    above?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are below any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    below?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements containing an element that matches an inner locator. Inner locator is queried against the outer one.
-     * For example, `article` that has `text=Playwright` matches `<article><div>Playwright</div></article>`.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    has?: Locator;
-
-    /**
-     * Matches elements containing specified text somewhere inside, possibly in a child or a descendant element. When passed a
-     * [string], matching is case-insensitive and searches for a substring. For example, `"Playwright"` matches
-     * `<article><div>Playwright</div></article>`.
-     */
-    hasText?: string|RegExp;
-
-    /**
-     * Matches elements that are to the left of any element matching the inner locator, at any vertical position. Inner locator
-     * is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    leftOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are near any of the elements matching the inner locator. Inner locator is queried against the same
-     * root as the outer one. More details in [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    near?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum distance between the elements in pixels, 50 by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are to the right of any element matching the inner locator, at any vertical position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    rightOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-  }): Locator;
 
   /**
    * Focuses the element, and then sends a `keydown`, `keypress`/`input`, and `keyup` event for each character in the text.
@@ -14300,44 +13931,6 @@ export interface FrameLocator {
    */
   locator(selector: string, options?: {
     /**
-     * Matches elements that are above any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    above?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are below any of the elements matching the inner locator, at any horizontal position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    below?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum vertical distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
      * Matches elements containing an element that matches an inner locator. Inner locator is queried against the outer one.
      * For example, `article` that has `text=Playwright` matches `<article><div>Playwright</div></article>`.
      *
@@ -14351,62 +13944,6 @@ export interface FrameLocator {
      * `<article><div>Playwright</div></article>`.
      */
     hasText?: string|RegExp;
-
-    /**
-     * Matches elements that are to the left of any element matching the inner locator, at any vertical position. Inner locator
-     * is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    leftOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are near any of the elements matching the inner locator. Inner locator is queried against the same
-     * root as the outer one. More details in [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    near?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum distance between the elements in pixels, 50 by default.
-       */
-      maxDistance?: number;
-    };
-
-    /**
-     * Matches elements that are to the right of any element matching the inner locator, at any vertical position. Inner
-     * locator is queried against the same root as the outer one. More details in
-     * [layout selectors](https://playwright.dev/docs/selectors#selecting-elements-based-on-layout) guide.
-     *
-     * Note that outer and inner locators must belong to the same frame. Inner locator must not contain [FrameLocator]s.
-     */
-    rightOf?: Locator|{
-      /**
-       * The inner locator.
-       */
-      locator: Locator;
-
-      /**
-       * Maximum horizontal distance between the elements in pixels, unlimited by default.
-       */
-      maxDistance?: number;
-    };
   }): Locator;
 
   /**
@@ -15166,6 +14703,8 @@ export interface Response {
  * [page.route(url, handler[, options])](https://playwright.dev/docs/api/class-page#page-route) or
  * [browserContext.route(url, handler[, options])](https://playwright.dev/docs/api/class-browsercontext#browser-context-route),
  * the `Route` object allows to handle the route.
+ *
+ * Learn more about [networking](https://playwright.dev/docs/network).
  */
 export interface Route {
   /**
@@ -16307,7 +15846,9 @@ export interface LocatorScreenshotOptions {
   /**
    * When set to `"css"`, screenshot will have a single pixel per each css pixel on the page. For high-dpi devices, this will
    * keep screenshots small. Using `"device"` option will produce a single pixel per each device pixel, so screenhots of
-   * high-dpi devices will be twice as large or even larger. Defaults to `"device"`.
+   * high-dpi devices will be twice as large or even larger.
+   *
+   * Defaults to `"device"`.
    */
   scale?: "css"|"device";
 
@@ -16490,7 +16031,9 @@ export interface PageScreenshotOptions {
   /**
    * When set to `"css"`, screenshot will have a single pixel per each css pixel on the page. For high-dpi devices, this will
    * keep screenshots small. Using `"device"` option will produce a single pixel per each device pixel, so screenhots of
-   * high-dpi devices will be twice as large or even larger. Defaults to `"device"`.
+   * high-dpi devices will be twice as large or even larger.
+   *
+   * Defaults to `"device"`.
    */
   scale?: "css"|"device";
 
