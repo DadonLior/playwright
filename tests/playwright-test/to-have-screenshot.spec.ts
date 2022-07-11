@@ -74,6 +74,42 @@ test('should disable animations by default', async ({ runInlineTest }, testInfo)
   expect(result.exitCode).toBe(0);
 });
 
+test.describe('expect config animations option', () => {
+  test('disabled', async ({ runInlineTest }, testInfo) => {
+    const cssTransitionURL = pathToFileURL(path.join(__dirname, '../assets/css-transition.html'));
+    const result = await runInlineTest({
+      ...playwrightConfig({
+        expect: { toHaveScreenshot: { animations: 'disabled' } },
+      }),
+      'a.spec.js': `
+          pwt.test('is a test', async ({ page }) => {
+            await page.goto('${cssTransitionURL}');
+            await expect(page).toHaveScreenshot({ timeout: 2000 });
+          });
+        `
+    }, { 'update-snapshots': true });
+    expect(result.exitCode).toBe(0);
+  });
+
+  test('allow', async ({ runInlineTest }, testInfo) => {
+    const cssTransitionURL = pathToFileURL(path.join(__dirname, '../assets/css-transition.html'));
+    const result = await runInlineTest({
+      ...playwrightConfig({
+        expect: { toHaveScreenshot: { animations: 'allow' } },
+      }),
+      'a.spec.js': `
+          pwt.test('is a test', async ({ page }) => {
+            await page.goto('${cssTransitionURL}');
+            await expect(page).toHaveScreenshot({ timeout: 2000 });
+          });
+        `
+    }, { 'update-snapshots': true });
+    expect(result.exitCode).toBe(1);
+    expect(result.output).toContain('is-a-test-1-diff.png');
+  });
+});
+
+
 test('should fail with proper error when unsupported argument is given', async ({ runInlineTest }, testInfo) => {
   const cssTransitionURL = pathToFileURL(path.join(__dirname, '../assets/css-transition.html'));
   const result = await runInlineTest({
@@ -378,11 +414,9 @@ test('should generate default name', async ({ runInlineTest }, testInfo) => {
 });
 
 test('should compile with different option combinations', async ({ runTSC }) => {
-  const experimentalPath = path.resolve(__dirname, '..', 'config', 'experimental.d.ts');
   const result = await runTSC({
     'playwright.config.ts': `
       //@no-header
-      /// <reference path=${JSON.stringify(experimentalPath)} />
       import type { PlaywrightTestConfig } from '@playwright/test';
       const config: PlaywrightTestConfig = {
         expect: {
@@ -732,6 +766,31 @@ test('should respect maxDiffPixels option', async ({ runInlineTest }) => {
       });
     `
   })).exitCode, 'make sure maxDiffPixels option in project config is respected').toBe(0);
+});
+
+test('should not update screenshot that matches with maxDiffPixels option when -u is passed', async ({ runInlineTest }, testInfo) => {
+  const BAD_PIXELS = 120;
+  const EXPECTED_SNAPSHOT = paintBlackPixels(whiteImage, BAD_PIXELS);
+
+  const result = await runInlineTest({
+    ...playwrightConfig({ screenshotsDir: '__screenshots__' }),
+    '__screenshots__/a.spec.js/snapshot.png': EXPECTED_SNAPSHOT,
+    'a.spec.js': `
+      pwt.test('is a test', async ({ page }) => {
+        await expect(page).toHaveScreenshot('snapshot.png', { maxDiffPixels: ${BAD_PIXELS} });
+      });
+    `
+  }, { 'update-snapshots': true });
+
+  expect(result.exitCode).toBe(0);
+  expect(result.output).not.toContain(`is re-generated, writing actual`);
+  expect(fs.existsSync(testInfo.outputPath('test-results', 'a-is-a-test', 'is-a-test-1-actual.png'))).toBe(false);
+  expect(fs.existsSync(testInfo.outputPath('test-results', 'a-is-a-test', 'is-a-test-1-expected.png'))).toBe(false);
+  expect(fs.existsSync(testInfo.outputPath('test-results', 'a-is-a-test', 'is-a-test-1-previous.png'))).toBe(false);
+  expect(fs.existsSync(testInfo.outputPath('test-results', 'a-is-a-test', 'is-a-test-1-diff.png'))).toBe(false);
+
+  const data = fs.readFileSync(testInfo.outputPath('__screenshots__/a.spec.js/snapshot.png'));
+  expect(pngComparator(data, EXPECTED_SNAPSHOT)).toBe(null);
 });
 
 test('should satisfy both maxDiffPixelRatio and maxDiffPixels', async ({ runInlineTest }) => {

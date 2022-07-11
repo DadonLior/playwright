@@ -574,7 +574,6 @@ else
 <br/>
 
 ## Modify responses
-* langs: js
 
 To modify a response use [APIRequestContext] to get original response and then pass the response to [`method: Route.fulfill`].
 You can override individual fields on the response via options:
@@ -600,6 +599,87 @@ await page.route('**/title.html', async route => {
 });
 ```
 
+```java
+page.route("**/title.html", route -> {
+  // Fetch original response.
+  APIResponse response = page.request().fetch(route.request());
+  // Add a prefix to the title.
+  String body = response.text();
+  body = body.replace("<title>", "<title>My prefix:");
+  Map<String, String> headers = response.headers();
+  headers.put("content-type": "text/html");
+  route.fulfill(new Route.FulfillOptions()
+    // Pass all fields from the response.
+    .setResponse(response)
+    // Override response body.
+    .setBody(body)
+    // Force content type to be html.
+    .setHeaders(headers));
+});
+```
+
+```python async
+async def handle_route(route: Route) -> None:
+    # Fetch original response.
+    response = await page.request.fetch(route.request)
+    # Add a prefix to the title.
+    body = await response.text()
+    body = body.replace("<title>", "<title>My prefix:")
+    await route.fulfill(
+        # Pass all fields from the response.
+        response=response,
+        # Override response body.
+        body=body,
+        # Force content type to be html.
+        headers={**response.headers, "content-type": "text/html"},
+    )
+
+await page.route("**/title.html", handle_route)
+```
+
+```python sync
+def handle_route(route: Route) -> None:
+    # Fetch original response.
+    response = page.request.fetch(route.request)
+    # Add a prefix to the title.
+    body = response.text()
+    body = body.replace("<title>", "<title>My prefix:")
+    route.fulfill(
+        # Pass all fields from the response.
+        response=response,
+        # Override response body.
+        body=body,
+        # Force content type to be html.
+        headers={**response.headers, "content-type": "text/html"},
+    )
+
+page.route("**/title.html", handle_route)
+```
+
+```csharp
+await Page.RouteAsync("**/title.html", async route =>
+{
+    // Fetch original response.
+    var response = await Page.APIRequest.FetchAsync(route.Request);
+    // Add a prefix to the title.
+    var body = await response.TextAsync();
+    body = body.Replace("<title>", "<title>My prefix:");
+
+    var headers = response.Headers;
+    headers.Add("Content-Type", "text/html");
+
+    await route.FulfillAsync(new()
+    {
+        // Pass all fields from the response.
+        Response = response,
+        // Override response body.
+        Body = body,
+        // Force content type to be html.
+        Headers = headers,
+    });
+});
+```
+
 ### API reference
 - [APIRequestContext]
 - [`method: Page.route`]
@@ -608,6 +688,134 @@ await page.route('**/title.html', async route => {
 - [`property: BrowserContext.request`]
 - [`property: Page.request`]
 - [`method: Route.fulfill`]
+
+<br/>
+
+## Record and replay requests
+
+You can record network activity as an HTTP Archive file (HAR). Later on, this archive can be used to mock responses to the network requests. You'll need to:
+1. Record a HAR file.
+1. Commit the HAR file alongside the tests.
+1. Route requests using the saved HAR files in the tests.
+
+### Recording HAR with CLI
+
+Open the browser with [Playwright CLI](./cli.md) and pass `--save-har` option to produce a HAR file. Optionally, use `--save-har-glob` to only save requests you are interested in, for example API endpoints. If the har file name ends with `.zip`, artifacts are written as separate files and are all compressed into a single `zip`.
+
+```bash js
+# Save API requests from example.com as "example.har" archive.
+npx playwright open --save-har=example.har --save-har-glob="**/api/**" https://example.com
+```
+
+```bash java
+# Save API requests from example.com as "example.har" archive.
+mvn exec:java -e -Dexec.mainClass=com.microsoft.playwright.CLI -Dexec.args="open --save-har=example.har --save-har-glob='**/api/**' https://example.com"
+```
+
+```bash python
+# Save API requests from example.com as "example.har" archive.
+playwright open --save-har=example.har --save-har-glob="**/api/**" https://example.coms
+```
+
+```bash csharp
+# Save API requests from example.com as "example.har" archive.
+pwsh bin\Debug\netX\playwright.ps1 open --save-har=example.har --save-har-glob="**/api/**" https://example.com
+```
+
+### Recording HAR with a script
+
+Alternatively, instead of using the CLI, you can record HAR programmatically. Pass [`option: har`] option when creating a [BrowserContext] with [`method: Browser.newContext`] to create an archive. If the har file name ends with `.zip`, artifacts are written as separate files and are all compressed into a single `zip`.
+
+```js
+const context = await browser.newContext({
+  recordHar: { path: 'example.har', urlFilter: '**/api/**' }
+});
+
+// ... Perform actions ...
+
+// Close context to ensure HAR is saved to disk.
+await context.close();
+```
+
+```java
+BrowserContext context = browser.newContext(new Browser.NewContextOptions()
+    .setRecordHarPath(Paths.get("example.har"))
+    .setRecordHarUrlFilter("**/api/**"));
+
+// ... Perform actions ...
+
+// Close context to ensure HAR is saved to disk.
+context.close();
+```
+
+```python async
+context = await browser.new_context(record_har_path="example.har", record_har_url_filter="**/api/**")
+
+# ... Perform actions ...
+
+# Close context to ensure HAR is saved to disk.
+await context.close()
+```
+
+```python sync
+context = browser.new_context(record_har_path="example.har", record_har_url_filter="**/api/**")
+
+# ... Perform actions ...
+
+# Close context to ensure HAR is saved to disk.
+context.close()
+```
+
+```csharp
+var context = await browser.NewContextAsync(new () {
+    RecordHarPath = "example.har",
+    RecordHarUrlFilter = "**/api/**",
+});
+
+// ... Perform actions ...
+
+// Close context to ensure HAR is saved to disk.
+await context.CloseAsync();
+```
+
+### Replaying from HAR
+
+Use [`method: Page.routeFromHAR`] or [`method: BrowserContext.routeFromHAR`] to serve matching responses from the [HAR](http://www.softwareishard.com/blog/har-12-spec/) file.
+
+```js
+// Replay API requests from HAR.
+// Either use a matching response from the HAR,
+// or abort the request if nothing matches.
+await page.routeFromHAR('example.har');
+```
+
+```java
+// Either use a matching response from the HAR,
+// or abort the request if nothing matches.
+page.routeFromHAR(Paths.get("example.har"));
+```
+
+```python async
+# Either use a matching response from the HAR,
+# or abort the request if nothing matches.
+await page.route_from_har("example.har")
+```
+
+```python sync
+# Either use a matching response from the HAR,
+# or abort the request if nothing matches.
+page.route_from_har("example.har")
+```
+
+```csharp
+// Either use a matching response from the HAR,
+// or abort the request if nothing matches.
+await context.RouteFromHARAsync("example.har");
+```
+
+HAR replay matches URL and HTTP method strictly. For POST requests, it also matches POST payloads strictly. If multiple recordings match a request, the one with the most matching headers is picked. An entry resulting in a redirect will be followed automatically.
+
+Similar to when recording, if given HAR file name ends with `.zip`, it is considered an archive containing the HAR file along with network payloads stored as separate entries. You can also extract this archive, edit payloads or HAR log manually and point to the extracted har file. All the payloads will be resolved relative to the extracted har file on the file system.
 
 <br/>
 

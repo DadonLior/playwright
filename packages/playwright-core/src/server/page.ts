@@ -20,6 +20,7 @@ import * as frames from './frames';
 import * as input from './input';
 import * as js from './javascript';
 import * as network from './network';
+import type * as channels from '../protocol/channels';
 import type { ScreenshotOptions } from './screenshotter';
 import { Screenshotter, validateScreenshotOptions } from './screenshotter';
 import { TimeoutSettings } from '../common/timeoutSettings';
@@ -64,10 +65,10 @@ export interface PageDelegate {
   navigateFrame(frame: frames.Frame, url: string, referrer: string | undefined): Promise<frames.GotoResult>;
 
   updateExtraHTTPHeaders(): Promise<void>;
-  setEmulatedSize(emulatedSize: types.EmulatedSize): Promise<void>;
+  updateEmulatedViewportSize(): Promise<void>;
   updateEmulateMedia(): Promise<void>;
   updateRequestInterception(): Promise<void>;
-  setFileChooserIntercepted(enabled: boolean): Promise<void>;
+  updateFileChooserInterception(enabled: boolean): Promise<void>;
   bringToFront(): Promise<void>;
 
   setBackgroundColor(color?: { r: number; g: number; b: number; a: number; }): Promise<void>;
@@ -86,7 +87,7 @@ export interface PageDelegate {
   setScreencastOptions(options: { width: number, height: number, quality: number } | null): Promise<void>;
 
   getAccessibilityTree(needle?: dom.ElementHandle): Promise<{tree: accessibility.AXNode, needle: accessibility.AXNode | null}>;
-  pdf?: (options?: types.PDFOptions) => Promise<Buffer>;
+  pdf?: (options: channels.PagePdfParams) => Promise<Buffer>;
   coverage?: () => any;
 
   // Work around WebKit's raf issues on Windows.
@@ -97,13 +98,13 @@ export interface PageDelegate {
   readonly cspErrorsAsynchronousForInlineScipts?: boolean;
 }
 
-type PageState = {
-  emulatedSize: { screen: types.Size, viewport: types.Size } | null;
-  mediaType: types.MediaType | null;
+type EmulatedSize = { screen: types.Size, viewport: types.Size };
+
+type EmulatedMedia = {
+  media: types.MediaType | null;
   colorScheme: types.ColorScheme | null;
   reducedMotion: types.ReducedMotion | null;
   forcedColors: types.ForcedColors | null;
-  extraHTTPHeaders: types.HeadersArray | null;
 };
 
 type ExpectScreenshotOptions = {
@@ -126,14 +127,12 @@ export class Page extends SdkObject {
     Dialog: 'dialog',
     Download: 'download',
     FileChooser: 'filechooser',
-    DOMContentLoaded: 'domcontentloaded',
     // Can't use just 'error' due to node.js special treatment of error events.
     // @see https://nodejs.org/api/events.html#events_error_events
     PageError: 'pageerror',
     FrameAttached: 'frameattached',
     FrameDetached: 'framedetached',
     InternalFrameNavigatedToNewDocument: 'internalframenavigatedtonewdocument',
-    Load: 'load',
     ScreencastFrame: 'screencastframe',
     Video: 'video',
     WebSocket: 'websocket',
@@ -152,17 +151,20 @@ export class Page extends SdkObject {
   readonly touchscreen: input.Touchscreen;
   readonly _timeoutSettings: TimeoutSettings;
   readonly _delegate: PageDelegate;
-  readonly _state: PageState;
+  _emulatedSize: EmulatedSize | undefined;
+  private _extraHTTPHeaders: types.HeadersArray | undefined;
+  private _emulatedMedia: Partial<EmulatedMedia> = {};
+  private _interceptFileChooser = false;
   private readonly _pageBindings = new Map<string, PageBinding>();
   readonly initScripts: string[] = [];
   readonly _screenshotter: Screenshotter;
   readonly _frameManager: frames.FrameManager;
   readonly accessibility: accessibility.Accessibility;
   private _workers = new Map<string, Worker>();
-  readonly pdf: ((options?: types.PDFOptions) => Promise<Buffer>) | undefined;
+  readonly pdf: ((options: channels.PagePdfParams) => Promise<Buffer>) | undefined;
   readonly coverage: any;
-  private _clientRequestInterceptor: network.RouteHandler | undefined;
-  private _serverRequestInterceptor: network.RouteHandler | undefined;
+  _clientRequestInterceptor: network.RouteHandler | undefined;
+  _serverRequestInterceptor: network.RouteHandler | undefined;
   _ownedContext: BrowserContext | undefined;
   readonly selectors: Selectors;
   _pageIsError: Error | undefined;
@@ -176,14 +178,6 @@ export class Page extends SdkObject {
     this.attribution.page = this;
     this._delegate = delegate;
     this._browserContext = browserContext;
-    this._state = {
-      emulatedSize: browserContext._options.viewport ? { viewport: browserContext._options.viewport, screen: browserContext._options.screen || browserContext._options.viewport } : null,
-      mediaType: null,
-      colorScheme: browserContext._options.colorScheme !== undefined  ? browserContext._options.colorScheme : 'light',
-      reducedMotion: browserContext._options.reducedMotion !== undefined  ? browserContext._options.reducedMotion : 'no-preference',
-      forcedColors: browserContext._options.forcedColors !== undefined  ? browserContext._options.forcedColors : 'none',
-      extraHTTPHeaders: null,
-    };
     this.accessibility = new accessibility.Accessibility(delegate.getAccessibilityTree.bind(delegate));
     this.keyboard = new input.Keyboard(delegate.rawKeyboard, this);
     this.mouse = new input.Mouse(delegate.rawMouse, this);
@@ -206,7 +200,7 @@ export class Page extends SdkObject {
       this._opener = openerPage;
   }
 
-  reportAsNew(error?: Error) {
+  reportAsNew(error: Error | undefined = undefined, contextEvent: string = BrowserContext.Events.Page) {
     if (error) {
       // Initialization error could have happened because of
       // context/browser closure. Just ignore the page.
@@ -215,7 +209,7 @@ export class Page extends SdkObject {
       this._setIsError(error);
     }
     this._initialized = true;
-    this.emitOnContext(BrowserContext.Events.Page, this);
+    this.emitOnContext(contextEvent, this);
     // I may happen that page initialization finishes after Close event has already been sent,
     // in that case we fire another Close event to ensure that each reported Page will have
     // corresponding Close event after it is reported on the context.
@@ -326,8 +320,12 @@ export class Page extends SdkObject {
   }
 
   setExtraHTTPHeaders(headers: types.HeadersArray) {
-    this._state.extraHTTPHeaders = headers;
+    this._extraHTTPHeaders = headers;
     return this._delegate.updateExtraHTTPHeaders();
+  }
+
+  extraHTTPHeaders(): types.HeadersArray | undefined {
+    return this._extraHTTPHeaders;
   }
 
   async _onBindingCalled(payload: string, context: dom.FrameExecutionContext) {
@@ -347,7 +345,7 @@ export class Page extends SdkObject {
 
   async reload(metadata: CallMetadata, options: types.NavigateOptions): Promise<network.Response | null> {
     const controller = new ProgressController(metadata, this);
-    return controller.run(progress => this.mainFrame().raceNavigationAction(async () => {
+    return controller.run(progress => this.mainFrame().raceNavigationAction(progress, options, async () => {
       // Note: waitForNavigation may fail before we get response to reload(),
       // so we should await it immediately.
       const [response] = await Promise.all([
@@ -361,7 +359,7 @@ export class Page extends SdkObject {
 
   async goBack(metadata: CallMetadata, options: types.NavigateOptions): Promise<network.Response | null> {
     const controller = new ProgressController(metadata, this);
-    return controller.run(progress => this.mainFrame().raceNavigationAction(async () => {
+    return controller.run(progress => this.mainFrame().raceNavigationAction(progress, options, async () => {
       // Note: waitForNavigation may fail before we get response to goBack,
       // so we should catch it immediately.
       let error: Error | undefined;
@@ -382,7 +380,7 @@ export class Page extends SdkObject {
 
   async goForward(metadata: CallMetadata, options: types.NavigateOptions): Promise<network.Response | null> {
     const controller = new ProgressController(metadata, this);
-    return controller.run(progress => this.mainFrame().raceNavigationAction(async () => {
+    return controller.run(progress => this.mainFrame().raceNavigationAction(progress, options, async () => {
       // Note: waitForNavigation may fail before we get response to goForward,
       // so we should catch it immediately.
       let error: Error | undefined;
@@ -401,27 +399,44 @@ export class Page extends SdkObject {
     }), this._timeoutSettings.navigationTimeout(options));
   }
 
-  async emulateMedia(options: { media?: types.MediaType | null, colorScheme?: types.ColorScheme | null, reducedMotion?: types.ReducedMotion | null, forcedColors?: types.ForcedColors | null }) {
+  async emulateMedia(options: Partial<EmulatedMedia>) {
     if (options.media !== undefined)
-      this._state.mediaType = options.media;
+      this._emulatedMedia.media = options.media;
     if (options.colorScheme !== undefined)
-      this._state.colorScheme = options.colorScheme;
+      this._emulatedMedia.colorScheme = options.colorScheme;
     if (options.reducedMotion !== undefined)
-      this._state.reducedMotion = options.reducedMotion;
+      this._emulatedMedia.reducedMotion = options.reducedMotion;
     if (options.forcedColors !== undefined)
-      this._state.forcedColors = options.forcedColors;
+      this._emulatedMedia.forcedColors = options.forcedColors;
     await this._delegate.updateEmulateMedia();
     await this._doSlowMo();
   }
 
+  emulatedMedia(): EmulatedMedia {
+    const contextOptions = this._browserContext._options;
+    return {
+      media: this._emulatedMedia.media || null,
+      colorScheme: this._emulatedMedia.colorScheme !== undefined ? this._emulatedMedia.colorScheme : contextOptions.colorScheme ?? 'light',
+      reducedMotion: this._emulatedMedia.reducedMotion !== undefined ? this._emulatedMedia.reducedMotion : contextOptions.reducedMotion ?? 'no-preference',
+      forcedColors: this._emulatedMedia.forcedColors !== undefined ? this._emulatedMedia.forcedColors : contextOptions.forcedColors ?? 'none',
+    };
+  }
+
   async setViewportSize(viewportSize: types.Size) {
-    this._state.emulatedSize = { viewport: { ...viewportSize }, screen: { ...viewportSize } };
-    await this._delegate.setEmulatedSize(this._state.emulatedSize);
+    this._emulatedSize = { viewport: { ...viewportSize }, screen: { ...viewportSize } };
+    await this._delegate.updateEmulatedViewportSize();
     await this._doSlowMo();
   }
 
   viewportSize(): types.Size | null {
-    return this._state.emulatedSize?.viewport || null;
+    return this.emulatedSize()?.viewport || null;
+  }
+
+  emulatedSize(): EmulatedSize | null {
+    if (this._emulatedSize)
+      return this._emulatedSize;
+    const contextOptions = this._browserContext._options;
+    return contextOptions.viewport ? { viewport: contextOptions.viewport, screen: contextOptions.screen || contextOptions.viewport } : null;
   }
 
   async bringToFront(): Promise<void> {
@@ -438,7 +453,7 @@ export class Page extends SdkObject {
     await this._delegate.removeInitScripts();
   }
 
-  _needsRequestInterception(): boolean {
+  needsRequestInterception(): boolean {
     return !!this._clientRequestInterceptor || !!this._serverRequestInterceptor || !!this._browserContext._requestInterceptor;
   }
 
@@ -450,23 +465,6 @@ export class Page extends SdkObject {
   async _setServerRequestInterceptor(handler: network.RouteHandler | undefined): Promise<void> {
     this._serverRequestInterceptor = handler;
     await this._delegate.updateRequestInterception();
-  }
-
-  _requestStarted(request: network.Request, routeDelegate: network.RouteDelegate) {
-    const route = new network.Route(request, routeDelegate);
-    if (this._serverRequestInterceptor) {
-      this._serverRequestInterceptor(route, request);
-      return;
-    }
-    if (this._clientRequestInterceptor) {
-      this._clientRequestInterceptor(route, request);
-      return;
-    }
-    if (this._browserContext._requestInterceptor) {
-      this._browserContext._requestInterceptor(route, request);
-      return;
-    }
-    route.continue();
   }
 
   async expectScreenshot(metadata: CallMetadata, options: ExpectScreenshotOptions = {}): Promise<{ actual?: Buffer, previous?: Buffer, diff?: Buffer, errorMessage?: string, log?: string[] }> {
@@ -620,7 +618,12 @@ export class Page extends SdkObject {
   }
 
   async setFileChooserIntercepted(enabled: boolean): Promise<void> {
-    await this._delegate.setFileChooserIntercepted(enabled);
+    this._interceptFileChooser = enabled;
+    await this._delegate.updateFileChooserInterception(enabled);
+  }
+
+  fileChooserIntercepted() {
+    return this._interceptFileChooser;
   }
 
   frameNavigatedToNewDocument(frame: frames.Frame) {

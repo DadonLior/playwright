@@ -53,21 +53,23 @@ type FixtureRegistration = {
 class Fixture {
   runner: FixtureRunner;
   registration: FixtureRegistration;
-  usages: Set<Fixture>;
   value: any;
+  failed = false;
 
   _useFuncFinished: ManualPromise<void> | undefined;
   _selfTeardownComplete: Promise<void> | undefined;
   _teardownWithDepsComplete: Promise<void> | undefined;
   _runnableDescription: FixtureDescription;
+  _deps = new Set<Fixture>();
+  _usages = new Set<Fixture>();
 
   constructor(runner: FixtureRunner, registration: FixtureRegistration) {
     this.runner = runner;
     this.registration = registration;
-    this.usages = new Set();
     this.value = null;
+    const title = this.registration.customTitle || this.registration.name;
     this._runnableDescription = {
-      title: `fixture "${this.registration.customTitle || this.registration.name}" setup`,
+      title: this.registration.timeout !== undefined ? `Fixture "${title}"` : `setting up "${title}"`,
       location: registration.location,
       slot: this.registration.timeout === undefined ? undefined : {
         timeout: this.registration.timeout,
@@ -86,8 +88,17 @@ class Fixture {
     for (const name of this.registration.deps) {
       const registration = this.runner.pool!.resolveDependency(this.registration, name)!;
       const dep = await this.runner.setupFixtureForRegistration(registration, testInfo);
-      dep.usages.add(this);
+      // Fixture teardown is root => leafs, when we need to teardown a fixture,
+      // it recursively tears down its usages first.
+      dep._usages.add(this);
+      // Don't forget to decrement all usages when fixture goes.
+      // Otherwise worker-scope fixtures will retain test-scope fixtures forever.
+      this._deps.add(dep);
       params[name] = dep.value;
+      if (dep.failed) {
+        this.failed = true;
+        return;
+      }
     }
 
     let called = false;
@@ -106,6 +117,7 @@ class Fixture {
     const info = this.registration.scope === 'worker' ? workerInfo : testInfo;
     testInfo._timeoutManager.setCurrentFixture(this._runnableDescription);
     this._selfTeardownComplete = Promise.resolve().then(() => this.registration.fn(params, useFunc, info)).catch((e: any) => {
+      this.failed = true;
       if (!useFuncStarted.isDone())
         useFuncStarted.reject(e);
       else
@@ -125,18 +137,25 @@ class Fixture {
     if (typeof this.registration.fn !== 'function')
       return;
     try {
-      for (const fixture of this.usages)
+      for (const fixture of this._usages)
         await fixture.teardown(timeoutManager);
-      this.usages.clear();
+      if (this._usages.size !== 0) {
+        // TODO: replace with assert.
+        console.error('Internal error: fixture integrity at', this._runnableDescription.title);  // eslint-disable-line no-console
+        this._usages.clear();
+      }
       if (this._useFuncFinished) {
         debugTest(`teardown ${this.registration.name}`);
-        this._runnableDescription.title = `fixture "${this.registration.customTitle || this.registration.name}" teardown`;
+        const title = this.registration.customTitle || this.registration.name;
+        this._runnableDescription.title = this.registration.timeout !== undefined ? `Fixture "${title}"` : `tearing down "${title}"`;
         timeoutManager.setCurrentFixture(this._runnableDescription);
         this._useFuncFinished.resolve();
         await this._selfTeardownComplete;
         timeoutManager.setCurrentFixture(undefined);
       }
     } finally {
+      for (const dep of this._deps)
+        dep._usages.delete(this);
       this.runner.instanceForId.delete(this.registration.id);
     }
   }
@@ -294,7 +313,7 @@ export class FixtureRunner {
       throw error;
   }
 
-  async resolveParametersForFunction(fn: Function, testInfo: TestInfoImpl, autoFixtures: 'worker' | 'test' | 'all-hooks-only'): Promise<object> {
+  async resolveParametersForFunction(fn: Function, testInfo: TestInfoImpl, autoFixtures: 'worker' | 'test' | 'all-hooks-only'): Promise<object | null> {
     // Install automatic fixtures.
     for (const registration of this.pool!.registrations.values()) {
       if (registration.auto === false)
@@ -304,8 +323,11 @@ export class FixtureRunner {
         shouldRun = registration.scope === 'worker' || registration.auto === 'all-hooks-included';
       else if (autoFixtures === 'worker')
         shouldRun = registration.scope === 'worker';
-      if (shouldRun)
-        await this.setupFixtureForRegistration(registration, testInfo);
+      if (shouldRun) {
+        const fixture = await this.setupFixtureForRegistration(registration, testInfo);
+        if (fixture.failed)
+          return null;
+      }
     }
 
     // Install used fixtures.
@@ -314,6 +336,8 @@ export class FixtureRunner {
     for (const name of names) {
       const registration = this.pool!.registrations.get(name)!;
       const fixture = await this.setupFixtureForRegistration(registration, testInfo);
+      if (fixture.failed)
+        return null;
       params[name] = fixture.value;
     }
     return params;
@@ -321,6 +345,10 @@ export class FixtureRunner {
 
   async resolveParametersAndRunFunction(fn: Function, testInfo: TestInfoImpl, autoFixtures: 'worker' | 'test' | 'all-hooks-only') {
     const params = await this.resolveParametersForFunction(fn, testInfo, autoFixtures);
+    if (params === null) {
+      // Do not run the function when fixture setup has already failed.
+      return null;
+    }
     return fn(params, testInfo);
   }
 

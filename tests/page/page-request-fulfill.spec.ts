@@ -17,6 +17,7 @@
 
 import { test as base, expect } from './pageTest';
 import fs from 'fs';
+import type * as har from 'playwright-core/lib/server/har/har';
 
 const it = base.extend<{
   // We access test servers at 10.0.2.2 from inside the browser on Android,
@@ -321,3 +322,37 @@ it('headerValue should return set-cookie from intercepted response', async ({ pa
   const response = await page.goto(server.EMPTY_PAGE);
   expect(await response.headerValue('Set-Cookie')).toBe('a=b');
 });
+
+it('should fulfill with har response', async ({ page, isAndroid, asset }) => {
+  it.fixme(isAndroid);
+
+  const harPath = asset('har-fulfill.har');
+  const har = JSON.parse(await fs.promises.readFile(harPath, 'utf-8')) as har.HARFile;
+  await page.route('**/*', async route => {
+    const response = findResponse(har, route.request().url());
+    const headers = {};
+    for (const { name, value } of response.headers)
+      headers[name] = value;
+    await route.fulfill({
+      status: response.status,
+      headers,
+      body: Buffer.from(response.content.text || '', (response.content.encoding as 'base64' | undefined) || 'utf-8'),
+    });
+  });
+  await page.goto('http://no.playwright/');
+  // HAR contains a redirect for the script.
+  expect(await page.evaluate('window.value')).toBe('foo');
+  // HAR contains a POST for the css file but we match ignoring the method, so the file should be served.
+  await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(0, 255, 255)');
+});
+
+function findResponse(har: har.HARFile, url: string): har.Response {
+  let entry;
+  const originalUrl = url;
+  while (url.trim()) {
+    entry = har.log.entries.find(entry => entry.request.url === url);
+    url = entry?.response.redirectURL;
+  }
+  expect(entry, originalUrl).toBeTruthy();
+  return entry?.response;
+}

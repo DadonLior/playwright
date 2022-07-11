@@ -15,21 +15,28 @@
  * limitations under the License.
  */
 
-import fs from 'fs';
 import domain from 'domain';
-import { playwrightTest as it, expect } from '../config/browserTest';
+import { playwrightTest, expect } from '../config/browserTest';
 
-// Use something worker-scoped (e.g. launch args) to force a new worker for this file.
+// Use something worker-scoped (e.g. expectScopeState) forces a new worker for this file.
 // Otherwise, a browser launched for other tests in this worker will affect the expectations.
-it.use({
-  launchOptions: async ({ launchOptions }, use) => {
-    await use({ ...launchOptions, args: [] });
-  }
+const it = playwrightTest.extend<{}, { expectScopeState: (object: any, golden: any) => void }>({
+  expectScopeState: [ async ({ toImpl }, use) => {
+    await use((object, golden) => {
+      golden = trimGuids(golden);
+      const remoteRoot = toImpl();
+      const remoteState = trimGuids(remoteRoot._debugScopeState());
+      const localRoot = object._connection._rootObject;
+      const localState = trimGuids(localRoot._debugScopeState());
+      expect(localState).toEqual(golden);
+      expect(remoteState).toEqual(golden);
+    });
+  }, { scope: 'worker' }],
 });
 
-it.skip(({ mode }) => mode === 'service');
+it.skip(({ mode }) => mode !== 'default');
 
-it('should scope context handles', async ({ browserType, server }) => {
+it('should scope context handles', async ({ browserType, server, expectScopeState }) => {
   const browser = await browserType.launch();
   const GOLDEN_PRECONDITION = {
     _guid: '',
@@ -83,7 +90,7 @@ it('should scope context handles', async ({ browserType, server }) => {
   await browser.close();
 });
 
-it('should scope CDPSession handles', async ({ browserType, browserName }) => {
+it('should scope CDPSession handles', async ({ browserType, browserName, expectScopeState }) => {
   it.skip(browserName !== 'chromium');
 
   const browser = await browserType.launch();
@@ -129,7 +136,7 @@ it('should scope CDPSession handles', async ({ browserType, browserName }) => {
   await browser.close();
 });
 
-it('should scope browser handles', async ({ browserType }) => {
+it('should scope browser handles', async ({ browserType, expectScopeState }) => {
   const GOLDEN_PRECONDITION = {
     _guid: '',
     objects: [
@@ -204,93 +211,6 @@ it('should work with the domain module', async ({ browserType, server, browserNa
   if (err)
     throw err;
 });
-
-it('make sure that the client/server side context, page, etc. objects were garbage collected', async ({ browserName, server, childProcess }, testInfo) => {
-  // WeakRef was added in Node.js 14
-  it.skip(parseInt(process.version.slice(1), 10) < 14);
-  const scriptPath = testInfo.outputPath('test.js');
-  const script = `
-  const playwright = require(${JSON.stringify(require.resolve('playwright'))});
-  const { kTestSdkObjects } = require(${JSON.stringify(require.resolve('../../packages/playwright-core/lib/server/instrumentation'))});
-  const { existingDispatcher } = require(${JSON.stringify(require.resolve('../../packages/playwright-core/lib/server/dispatchers/dispatcher'))});
-  
-  const toImpl = playwright._toImpl;
-  
-  (async () => {
-    const clientSideObjectsSizeBeforeLaunch = playwright._connection._objects.size;
-    const browser = await playwright['${browserName}'].launch();
-    const objectRefs = [];
-    const dispatcherRefs = [];
-
-    for (let i = 0; i < 5; i++) {
-      const context = await browser.newContext();
-      const page = await context.newPage();
-      const response = await page.goto('${server.EMPTY_PAGE}');
-      objectRefs.push(new WeakRef(toImpl(context)));
-      objectRefs.push(new WeakRef(toImpl(page)));
-      objectRefs.push(new WeakRef(toImpl(response)));
-      dispatcherRefs.push(
-        new WeakRef(existingDispatcher(toImpl(context))),
-        new WeakRef(existingDispatcher(toImpl(page))),
-        new WeakRef(existingDispatcher(toImpl(response))),
-      );
-    }
-
-    assertServerSideObjectsExistance(true);
-    assertServerSideDispatchersExistance(true);
-    await browser.close();
-
-    for (let i = 0; i < 5; i++) {
-      await new Promise(resolve => setTimeout(resolve, 100));
-      global.gc();
-    }
-
-    assertServerSideObjectsExistance(false);
-    assertServerSideDispatchersExistance(false);
-    
-    assertClientSideObjects();
-
-    function assertClientSideObjects() {
-      if (playwright._connection._objects.size !== clientSideObjectsSizeBeforeLaunch)
-        throw new Error('Client-side objects were not cleaned up');
-    }
-
-    function assertServerSideObjectsExistance(expected) {
-      for (const ref of objectRefs) {
-        if (kTestSdkObjects.has(ref.deref()) !== expected) {
-          throw new Error('Unexpected SdkObject existence! (expected: ' + expected + ')');
-        }
-      }
-    }
-
-    function assertServerSideDispatchersExistance(expected) {
-      for (const ref of dispatcherRefs) {
-        const impl = ref.deref();
-        if (!!impl !== expected)
-          throw new Error('Dispatcher is still alive!');
-      }
-    }
-  })();
-  `;
-  await fs.promises.writeFile(scriptPath, script);
-  const testSdkObjectsProcess = childProcess({
-    command: ['node', '--expose-gc', scriptPath],
-    env: {
-      ...process.env,
-      _PW_INTERNAL_COUNT_SDK_OBJECTS: '1',
-    }
-  });
-  const { exitCode } = await testSdkObjectsProcess.exited;
-  expect(exitCode).toBe(0);
-});
-
-async function expectScopeState(object, golden) {
-  golden = trimGuids(golden);
-  const remoteState = trimGuids(await object._channel.debugScopeState());
-  const localState = trimGuids(object._connection._debugScopeState());
-  expect(localState).toEqual(golden);
-  expect(remoteState).toEqual(golden);
-}
 
 function compareObjects(a, b) {
   if (a._guid !== b._guid)

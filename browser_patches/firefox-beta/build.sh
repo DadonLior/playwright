@@ -3,7 +3,7 @@ set -e
 set +x
 
 RUST_VERSION="1.59.0"
-CBINDGEN_VERSION="0.23.0"
+CBINDGEN_VERSION="0.24.3"
 
 trap "cd $(pwd -P)" EXIT
 
@@ -104,11 +104,28 @@ if [[ $1 == "--full" || $2 == "--full" || $1 == "--bootstrap" ]]; then
   fi
 fi
 
+# Remove the cbindgen from mozbuild to rely on the one we install manually.
+# See https://github.com/microsoft/playwright/issues/15174
+if is_win; then
+  rm -rf "${USERPROFILE}\\.mozbuild\\cbindgen"
+else
+  rm -rf "${HOME}/.mozbuild/cbindgen"
+fi
+
+
 if [[ $1 == "--juggler" ]]; then
   ./mach build faster
 elif [[ $1 == "--bootstrap" ]]; then
   ./mach configure
 else
+  export MOZ_AUTOMATION=1
+  # Use winpaths instead of unix paths on Windows.
+  # note: 'cygpath' is not available in MozBuild shell.
+  if is_win; then
+    export MOZ_FETCHES_DIR="${USERPROFILE}\\.mozbuild"
+  else
+    export MOZ_FETCHES_DIR="${HOME}/.mozbuild"
+  fi
   ./mach build
   if is_mac; then
     node "${SCRIPT_FOLDER}"/install-preferences.js "$PWD"/${OBJ_FOLDER}/dist

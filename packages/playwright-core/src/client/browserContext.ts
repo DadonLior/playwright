@@ -28,7 +28,7 @@ import { Events } from './events';
 import { TimeoutSettings } from '../common/timeoutSettings';
 import { Waiter } from './waiter';
 import type { URLMatch, Headers, WaitForEventOptions, BrowserContextOptions, StorageState, LaunchOptions } from './types';
-import { headersObjectToArray } from '../utils';
+import { headersObjectToArray, isRegExp, isString } from '../utils';
 import { mkdirIfNeeded } from '../utils/fileUtils';
 import { isSafeCloseError } from '../common/errors';
 import type * as api from '../../types/types';
@@ -40,6 +40,7 @@ import { Artifact } from './artifact';
 import { APIRequestContext } from './fetch';
 import { createInstrumentation } from './clientInstrumentation';
 import { rewriteErrorMessage } from '../utils/stackTrace';
+import { HarRouter } from './harRouter';
 
 export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel> implements api.BrowserContext {
   _pages = new Set<Page>();
@@ -57,6 +58,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   readonly _backgroundPages = new Set<Page>();
   readonly _serviceWorkers = new Set<Worker>();
   readonly _isChromium: boolean;
+  private _harRecorders = new Map<string, { path: string, content: 'embed' | 'attach' | 'omit' | undefined }>();
 
   static from(context: channels.BrowserContextChannel): BrowserContext {
     return (context as any)._object;
@@ -99,6 +101,8 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   _setBrowserType(browserType: BrowserType) {
     this._browserType = browserType;
     browserType._contexts.add(this);
+    if (this._options.recordHar)
+      this._harRecorders.set('', { path: this._options.recordHar.path, content: this._options.recordHar.content });
   }
 
   private _onPage(page: Page): void {
@@ -143,30 +147,20 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
       response._finishedPromise.resolve();
   }
 
-  _onRoute(route: network.Route, request: network.Request) {
-    for (const routeHandler of this._routes) {
+  async _onRoute(route: network.Route, request: network.Request) {
+    const routeHandlers = this._routes.slice();
+    for (const routeHandler of routeHandlers) {
       if (!routeHandler.matches(request.url()))
         continue;
-      // Immediately deactivate based on |times|.
       if (routeHandler.willExpire())
         this._routes.splice(this._routes.indexOf(routeHandler), 1);
-
-      (async () => {
-        try {
-          // Let async callback work prior to disabling interception.
-          await routeHandler.handle(route, request);
-        } finally {
-          if (!this._routes.length)
-            await this._wrapApiCall(() => this._disableInterception(), true).catch(() => {});
-        }
-      })();
-
-      // There is no chaining, first handler wins.
-      return;
+      const handled = await routeHandler.handle(route, request);
+      if (!this._routes.length)
+        this._wrapApiCall(() => this._disableInterception(), true).catch(() => {});
+      if (handled)
+        return;
     }
-
-    // it can race with BrowserContext.close() which then throws since its closed
-    route._internalContinue();
+    await route._innerContinue(true);
   }
 
   async _onBinding(bindingCall: BindingCall) {
@@ -279,6 +273,28 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
       await this._channel.setNetworkInterceptionEnabled({ enabled: true });
   }
 
+  async _recordIntoHAR(har: string, page: Page | null, options: { url?: string | RegExp, notFound?: 'abort' | 'fallback', update?: boolean } = {}): Promise<void> {
+    const { harId } = await this._channel.harStart({
+      page: page?._channel,
+      options: prepareRecordHarOptions({
+        path: har,
+        content: 'attach',
+        mode: 'minimal',
+        urlFilter: options.url
+      })!
+    });
+    this._harRecorders.set(harId, { path: har, content: 'attach' });
+  }
+
+  async routeFromHAR(har: string, options: { url?: string | RegExp, notFound?: 'abort' | 'fallback', update?: boolean } = {}): Promise<void> {
+    if (options.update) {
+      await this._recordIntoHAR(har, null, options);
+      return;
+    }
+    const harRouter = await HarRouter.create(this._connection.localUtils(), har, options.notFound || 'abort', { urlMatch: options.url });
+    harRouter.addContextRoute(this);
+  }
+
   async unroute(url: URLMatch, handler?: network.RouteHandlerCallback): Promise<void> {
     this._routes = this._routes.filter(route => route.url !== url || (handler && route.handler !== handler));
     if (!this._routes.length)
@@ -344,10 +360,18 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     try {
       await this._wrapApiCall(async () => {
         await this._browserType?._onWillCloseContext?.(this);
-        if (this._options.recordHar)  {
-          const har = await this._channel.harExport();
+        for (const [harId, harParams] of this._harRecorders) {
+          const har = await this._channel.harExport({ harId });
           const artifact = Artifact.from(har.artifact);
-          await artifact.saveAs(this._options.recordHar.path);
+          // Server side will compress artifact if content is attach or if file is .zip.
+          const isCompressed = harParams.content === 'attach' || harParams.path.endsWith('.zip');
+          const needCompressed = harParams.path.endsWith('.zip');
+          if (isCompressed && !needCompressed) {
+            await artifact.saveAs(harParams.path + '.tmp');
+            await this._connection.localUtils()._channel.harUnzip({ zipFile: harParams.path + '.tmp', harFile: harParams.path });
+          } else {
+            await artifact.saveAs(harParams.path);
+          }
           await artifact.delete();
         }
       }, true);
@@ -390,6 +414,19 @@ async function prepareStorageState(options: BrowserContextOptions): Promise<chan
   }
 }
 
+function prepareRecordHarOptions(options: BrowserContextOptions['recordHar']): channels.RecordHarOptions | undefined {
+  if (!options)
+    return;
+  return {
+    path: options.path,
+    content: options.content || (options.omitContent ? 'omit' : undefined),
+    urlGlob: isString(options.urlFilter) ? options.urlFilter : undefined,
+    urlRegexSource: isRegExp(options.urlFilter) ? options.urlFilter.source : undefined,
+    urlRegexFlags: isRegExp(options.urlFilter) ? options.urlFilter.flags : undefined,
+    mode: options.mode
+  };
+}
+
 export async function prepareBrowserContextParams(options: BrowserContextOptions): Promise<channels.BrowserNewContextParams> {
   if (options.videoSize && !options.videosPath)
     throw new Error(`"videoSize" option requires "videosPath" to be specified`);
@@ -401,6 +438,8 @@ export async function prepareBrowserContextParams(options: BrowserContextOptions
     noDefaultViewport: options.viewport === null,
     extraHTTPHeaders: options.extraHTTPHeaders ? headersObjectToArray(options.extraHTTPHeaders) : undefined,
     storageState: await prepareStorageState(options),
+    serviceWorkers: options.serviceWorkers,
+    recordHar: prepareRecordHarOptions(options.recordHar),
   };
   if (!contextParams.recordVideo && options.videosPath) {
     contextParams.recordVideo = {

@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import { Console } from 'console';
 import * as util from 'util';
 import type { RunPayload, TeardownErrorsPayload, TestOutputPayload, WorkerInitParams } from './ipc';
 import { startProfiling, stopProfiling } from './profiler';
@@ -24,12 +23,6 @@ import { WorkerRunner } from './workerRunner';
 let closed = false;
 
 sendMessageToParent('ready');
-
-global.console = new Console({
-  stdout: process.stdout,
-  stderr: process.stderr,
-  colorMode: process.env.FORCE_COLOR === '1',
-});
 
 process.stdout.write = (chunk: string | Buffer) => {
   const outPayload: TestOutputPayload = {
@@ -72,6 +65,7 @@ process.on('message', async message => {
   if (message.method === 'init') {
     const initParams = message.params as WorkerInitParams;
     workerIndex = initParams.workerIndex;
+    initConsoleParameters(initParams);
     startProfiling();
     workerRunner = new WorkerRunner(initParams);
     for (const event of ['testBegin', 'testEnd', 'stepBegin', 'stepEnd', 'done', 'teardownErrors'])
@@ -126,4 +120,18 @@ function chunkToParams(chunk: Buffer | string):  { text?: string, buffer?: strin
   if (typeof chunk !== 'string')
     return { text: util.inspect(chunk) };
   return { text: chunk };
+}
+
+function initConsoleParameters(initParams: WorkerInitParams) {
+  // Make sure the output supports colors.
+  process.stdout.isTTY = true;
+  process.stderr.isTTY = true;
+  if (initParams.stdoutDimension.rows)
+    process.stdout.rows = initParams.stdoutDimension.rows;
+  if (initParams.stdoutDimension.columns)
+    process.stdout.columns = initParams.stdoutDimension.columns;
+  if (initParams.stderrDimension.rows)
+    process.stderr.rows = initParams.stderrDimension.rows;
+  if (initParams.stderrDimension.columns)
+    process.stderr.columns = initParams.stderrDimension.columns;
 }

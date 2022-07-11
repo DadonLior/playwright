@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { installTransform, setCurrentlyLoadingTestFile } from './transform';
+import { installTransform } from './transform';
 import type { Config, Project, ReporterDescription, FullProjectInternal, FullConfigInternal, Fixtures, FixturesWithLocation } from './types';
-import { getPackageJsonPath, mergeObjects, errorWithFile } from './util';
+import { getPackageJsonPath, filterUndefinedFixtures, errorWithFile } from './util';
 import { setCurrentlyLoadingFileSuite } from './globals';
 import { Suite, type TestCase } from './test';
 import type { SerializedLoaderData } from './ipc';
@@ -98,7 +98,7 @@ export class Loader {
       throw new Error(`Cannot use --browser option when configuration file defines projects. Specify browserName in the projects instead.`);
     config.projects = takeFirst(this._configCLIOverrides.projects, config.projects as any);
     config.workers = takeFirst(this._configCLIOverrides.workers, config.workers);
-    config.use = mergeObjects(config.use, this._configCLIOverrides.use);
+    config.use = { ...filterUndefinedFixtures(config.use), ...filterUndefinedFixtures(this._configCLIOverrides.use) };
     for (const project of config.projects || [])
       this._applyCLIOverridesToProject(project);
 
@@ -141,7 +141,15 @@ export class Loader {
     this._fullConfig.shard = takeFirst(config.shard, baseFullConfig.shard);
     this._fullConfig.updateSnapshots = takeFirst(config.updateSnapshots, baseFullConfig.updateSnapshots);
     this._fullConfig.workers = takeFirst(config.workers, baseFullConfig.workers);
-    this._fullConfig.webServer = takeFirst(config.webServer, baseFullConfig.webServer);
+    const webServers = takeFirst(config.webServer, baseFullConfig.webServer);
+    if (Array.isArray(webServers)) { // multiple web server mode
+      // Due to previous choices, this value shows up to the user in globalSetup as part of FullConfig. Arrays are not supported by the old type.
+      this._fullConfig.webServer = null;
+      this._fullConfig._webServers = webServers;
+    } else if (webServers) { // legacy singleton mode
+      this._fullConfig.webServer = webServers;
+      this._fullConfig._webServers = [webServers];
+    }
     this._fullConfig.metadata = takeFirst(config.metadata, baseFullConfig.metadata);
     this._fullConfig.projects = (config.projects || [config]).map(p => this._resolveProject(config, this._fullConfig, p, throwawayArtifactsPath));
   }
@@ -153,7 +161,6 @@ export class Loader {
     suite._requireFile = file;
     suite.location = { file, line: 0, column: 0 };
 
-    setCurrentlyLoadingTestFile(file);
     setCurrentlyLoadingFileSuite(suite);
     try {
       await this._requireOrImport(file);
@@ -163,7 +170,6 @@ export class Loader {
         throw e;
       suite._loadError = serializeError(e);
     } finally {
-      setCurrentlyLoadingTestFile(null);
       setCurrentlyLoadingFileSuite(undefined);
     }
 
@@ -226,7 +232,7 @@ export class Loader {
     projectConfig.repeatEach = takeFirst(this._configCLIOverrides.repeatEach, projectConfig.repeatEach);
     projectConfig.retries = takeFirst(this._configCLIOverrides.retries, projectConfig.retries);
     projectConfig.timeout = takeFirst(this._configCLIOverrides.timeout, projectConfig.timeout);
-    projectConfig.use = mergeObjects(projectConfig.use, this._configCLIOverrides.use);
+    projectConfig.use = { ...filterUndefinedFixtures(projectConfig.use), ...filterUndefinedFixtures(this._configCLIOverrides.use) };
   }
 
   private _resolveProject(config: Config, fullConfig: FullConfigInternal, projectConfig: Project, throwawayArtifactsPath: string): FullProjectInternal {
@@ -241,6 +247,7 @@ export class Loader {
       projectConfig.snapshotDir = path.resolve(this._configDir, projectConfig.snapshotDir);
 
     const testDir = takeFirst(projectConfig.testDir, config.testDir, this._configDir);
+    const respectGitIgnore = !projectConfig.testDir && !config.testDir;
 
     const outputDir = takeFirst(projectConfig.outputDir, config.outputDir, path.join(throwawayArtifactsPath, 'test-results'));
     const snapshotDir = takeFirst(projectConfig.snapshotDir, config.snapshotDir, testDir);
@@ -258,12 +265,13 @@ export class Loader {
       metadata: takeFirst(projectConfig.metadata, config.metadata, undefined),
       name,
       testDir,
+      _respectGitIgnore: respectGitIgnore,
       snapshotDir,
       _screenshotsDir: screenshotsDir,
       testIgnore: takeFirst(projectConfig.testIgnore, config.testIgnore, []),
       testMatch: takeFirst(projectConfig.testMatch, config.testMatch, '**/?(*.)@(spec|test).*'),
       timeout: takeFirst(projectConfig.timeout, config.timeout, defaultTimeout),
-      use: mergeObjects(config.use, projectConfig.use),
+      use: { ...filterUndefinedFixtures(config.use), ...filterUndefinedFixtures(projectConfig.use) },
     };
   }
 
@@ -275,24 +283,6 @@ export class Loader {
       if (isModule)
         return await esmImport();
       return require(file);
-    } catch (error) {
-      if (error.code === 'ERR_MODULE_NOT_FOUND' && error.message.includes('Did you mean to import')) {
-        const didYouMean = /Did you mean to import (.*)\?/.exec(error.message)?.[1];
-        if (didYouMean?.endsWith('.ts'))
-          throw errorWithFile(file, 'Cannot import a typescript file from an esmodule.');
-      }
-      if (error.code === 'ERR_UNKNOWN_FILE_EXTENSION' && error.message.includes('.ts')) {
-        throw errorWithFile(file, `Cannot import a typescript file from an esmodule.\n${'='.repeat(80)}\nMake sure that:
-  - you are using Node.js 16+,
-  - your package.json contains "type": "module",
-  - you are using TypeScript for playwright.config.ts.
-${'='.repeat(80)}\n`);
-      }
-
-      if (error instanceof SyntaxError && error.message.includes('Cannot use import statement outside a module'))
-        throw errorWithFile(file, 'JavaScript files must end with .mjs to use import.');
-
-      throw error;
     } finally {
       revertBabelRequire();
     }
@@ -365,7 +355,9 @@ class ProjectSuiteBuilder {
       if (entry instanceof Suite) {
         const suite = entry._clone();
         to._addSuite(suite);
-        if (!this._cloneEntries(entry, suite, repeatEachIndex, filter, relativeTitlePath + ' ' + suite.title)) {
+        // Ignore empty titles, similar to Suite.titlePath().
+        const childTitlePath = relativeTitlePath + (suite.title ? ' ' + suite.title : '');
+        if (!this._cloneEntries(entry, suite, repeatEachIndex, filter, childTitlePath)) {
           to._entries.pop();
           to.suites.pop();
         }
@@ -626,6 +618,7 @@ export const baseFullConfig: FullConfigInternal = {
   version: require('../package.json').version,
   workers,
   webServer: null,
+  _webServers: [],
   _globalOutputDir: path.resolve(process.cwd()),
   _configDir: '',
   _testGroupsCount: 0,

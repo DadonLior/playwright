@@ -102,9 +102,10 @@ it('orientation', async ({ page }) => {
 });
 
 it('autocomplete', async ({ page }) => {
-  await page.setContent('<div role="textbox" aria-autocomplete="list">hi</div>');
+  await page.setContent('<div role="textbox" aria-autocomplete="list" aria-haspopup="menu">hi</div>');
   const snapshot = await page.accessibility.snapshot();
   expect(snapshot.children[0].autocomplete).toEqual('list');
+  expect(snapshot.children[0].haspopup).toEqual('menu');
 });
 
 it('multiselectable', async ({ page }) => {
@@ -173,7 +174,7 @@ it('rich text editable fields should have children', async function({ page, brow
   expect(snapshot.children[0]).toEqual(golden);
 });
 
-it('rich text editable fields with role should have children', async function({ page, browserName, browserMajorVersion }) {
+it('rich text editable fields with role should have children', async function({ page, browserName, browserMajorVersion, browserVersion }) {
   it.skip(browserName === 'webkit', 'WebKit rich text accessibility is iffy');
 
   await page.setContent(`
@@ -193,12 +194,15 @@ it('rich text editable fields with role should have children', async function({ 
     name: '',
     multiline: (browserName === 'chromium' && browserMajorVersion >= 92) ? true : undefined,
     value: 'Edit this image: ',
-    children: [{
+    children: (chromiumVersionLessThan(browserVersion, '104.0.1293.1') && browserName === 'chromium') ? [{
       role: 'text',
       name: 'Edit this image:'
     }, {
       role: 'img',
       name: 'my fake image'
+    }] : [{
+      role: 'text',
+      name: 'Edit this image:'
     }]
   };
   const snapshot = await page.accessibility.snapshot();

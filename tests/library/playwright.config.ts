@@ -52,7 +52,7 @@ const config: Config<CoverageWorkerOptions & PlaywrightWorkerOptions & Playwrigh
   maxFailures: 100,
   timeout: video ? 60000 : 30000,
   globalTimeout: 5400000,
-  workers: process.env.CI ? 1 : undefined,
+  workers: process.env.CI ? 2 : undefined,
   fullyParallel: !process.env.CI,
   forbidOnly: !!process.env.CI,
   preserveOutput: process.env.CI ? 'failures-only' : 'always',
@@ -74,7 +74,6 @@ if (mode === 'service') {
     reuseExistingServer: true,
     env: {
       PWTEST_UNSAFE_GRID_VERSION: '1',
-      PLAYWRIGHT_EXPERIMENTAL_FEATURES: '1',
     },
   };
   config.use.connectOptions = {
@@ -96,9 +95,6 @@ if (mode === 'service2') {
     command: 'npx playwright run-server --port=3333',
     port: 3333,
     reuseExistingServer: true,
-    env: {
-      PLAYWRIGHT_EXPERIMENTAL_FEATURES: '1',
-    },
   };
   config.use.connectOptions = {
     wsEndpoint: 'ws://localhost:3333/',

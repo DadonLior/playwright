@@ -515,7 +515,7 @@ it('should wait for becoming hit target with trial run', async ({ page, server }
 it('trial run should work with short timeout', async ({ page, server }) => {
   await page.goto(server.PREFIX + '/input/button.html');
   await page.$eval('button', button => button.disabled = true);
-  const error = await page.click('button', { trial: true, timeout: 500 }).catch(e => e);
+  const error = await page.click('button', { trial: true, timeout: 2000 }).catch(e => e);
   expect(error.message).toContain('click action (trial run)');
   expect(await page.evaluate(() => window['result'])).toBe('Was not clicked');
 });
@@ -582,7 +582,15 @@ it('should wait for input to be enabled', async ({ page }) => {
 });
 
 it('should wait for select to be enabled', async ({ page }) => {
-  await page.setContent('<select onclick="javascript:window.__CLICKED=true;" disabled><option selected>Hello</option></select>');
+  await page.setContent(`
+    <select disabled><option selected>Hello</option></select>
+    <script>
+      document.querySelector('select').addEventListener('mousedown', event => {
+        window.__CLICKED=true;
+        event.preventDefault();
+      });
+    </script>
+  `);
   let done = false;
   const clickPromise = page.click('select').then(() => done = true);
   await giveItAChanceToClick(page);
@@ -613,7 +621,8 @@ it('should climb up to [role=button]', async ({ page }) => {
 
 it('should climb up to a anchor', async ({ page }) => {
   // For Firefox its not allowed to return anything: https://bugzilla.mozilla.org/show_bug.cgi?id=1392046
-  await page.setContent(`<a href="javascript:(function(){window.__CLICKED=true})()" id="outer"><div id="inner" style="pointer-events: none">Inner</div></a>`);
+  // Note the intermediate div - it is necessary, otherwise <a><non-clickable/></a> is not recognized as a clickable link.
+  await page.setContent(`<a href="javascript:(function(){window.__CLICKED=true})()" id="outer"><div id="intermediate"><div id="inner" style="pointer-events: none">Inner</div></div></a>`);
   await page.click('#inner');
   expect(await page.evaluate('__CLICKED')).toBe(true);
 });
@@ -831,8 +840,8 @@ it('should not throw protocol error when navigating during the click', async ({ 
   expect(await page.evaluate('result')).toBe('Clicked');
 });
 
-it('should retry when navigating during the click', async ({ page, server, mode }) => {
-  it.skip(mode !== 'default');
+it('should retry when navigating during the click', async ({ page, server, mode, isAndroid }) => {
+  it.skip(mode !== 'default' || isAndroid);
 
   await page.goto(server.PREFIX + '/input/button.html');
   let firstTime = true;

@@ -66,6 +66,8 @@ SerializedValue:
       - "-0"
     # String representation of the Date.
     d: string?
+    # String representation of the URL.
+    u: string?
     # Regular expression pattern and flags.
     r:
       type: object?
@@ -108,6 +110,7 @@ ExpectedTextValue:
     regexSource: string?
     regexFlags: string?
     matchSubstring: boolean?
+    ignoreCase: boolean?
     normalizeWhiteSpace: boolean?
 
 
@@ -219,6 +222,27 @@ SerializedError:
         stack: string?
     value: SerializedValue?
 
+
+RecordHarOptions:
+  type: object
+  properties:
+    path: string
+    content:
+      type: enum?
+      literals:
+      - embed
+      - attach
+      - omit
+    mode:
+      type: enum?
+      literals:
+      - full
+      - minimal
+    urlGlob: string?
+    urlRegexSource: string?
+    urlRegexFlags: string?
+
+
 FormField:
   type: object
   properties:
@@ -267,7 +291,7 @@ APIRequestContext:
       parameters:
         fetchUid: string
       returns:
-        binary?: binary
+        binary: binary?
 
     fetchLog:
       parameters:
@@ -441,12 +465,13 @@ ContextOptions:
           properties:
             width: number
             height: number
-    recordHar:
-      type: object?
-      properties:
-        omitContent: boolean?
-        path: string
+    recordHar: RecordHarOptions?
     strictSelectors: boolean?
+    serviceWorkers:
+      type: enum?
+      literals:
+      - allow
+      - block
 
 LocalUtils:
   type: interface
@@ -459,6 +484,48 @@ LocalUtils:
         entries:
           type: array
           items: NameValue
+
+    harOpen:
+      parameters:
+        file: string
+      returns:
+        harId: string?
+        error: string?
+
+    harLookup:
+      parameters:
+        harId: string
+        url: string
+        method: string
+        headers:
+          type: array
+          items: NameValue
+        postData: binary?
+        isNavigationRequest: boolean
+      returns:
+        action:
+          type: enum
+          literals:
+          - error
+          - redirect
+          - fulfill
+          - noentry
+        message: string?
+        redirectURL: string?
+        status: number?
+        headers:
+          type: array?
+          items: NameValue
+        body: binary?
+
+    harClose:
+      parameters:
+        harId: string
+
+    harUnzip:
+      parameters:
+        zipFile: string
+        harFile: string
 
 Root:
   type: interface
@@ -866,7 +933,16 @@ BrowserContext:
       returns:
         session: CDPSession
 
+    harStart:
+      parameters:
+        page: Page?
+        options: RecordHarOptions
+      returns:
+        harId: string
+
     harExport:
+      parameters:
+        harId: string?
       returns:
         artifact: Artifact
 
@@ -1305,8 +1381,6 @@ Page:
         suggestedFilename: string
         artifact: Artifact
 
-    domcontentloaded:
-
     fileChooser:
       parameters:
         element: ElementHandle
@@ -1319,8 +1393,6 @@ Page:
     frameDetached:
       parameters:
         frame: Frame
-
-    load:
 
     pageError:
       parameters:
@@ -2408,7 +2480,8 @@ Request:
   type: interface
 
   initializer:
-    frame: Frame
+    frame: Frame?
+    serviceWorker: Worker?
     url: string
     resourceType: string
     method: string
@@ -2440,6 +2513,10 @@ Route:
 
   commands:
 
+    redirectNavigationRequest:
+      parameters:
+        url: string
+
     abort:
       parameters:
         errorCode: string?
@@ -2463,7 +2540,6 @@ Route:
         body: string?
         isBase64: boolean?
         fetchResponseUid: string?
-
 
 ResourceTiming:
   type: object
@@ -2489,6 +2565,7 @@ Response:
       type: array
       items: NameValue
     timing: ResourceTiming
+    fromServiceWorker: boolean
 
 
   commands:
@@ -2785,11 +2862,7 @@ Electron:
         ignoreHTTPSErrors: boolean?
         locale: string?
         offline: boolean?
-        recordHar:
-          type: object?
-          properties:
-            omitContent: boolean?
-            path: string
+        recordHar: RecordHarOptions?
         recordVideo:
           type: object?
           properties:

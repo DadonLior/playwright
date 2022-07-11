@@ -87,7 +87,7 @@ test('should allow export default form the config file', async ({ runInlineTest 
 
   expect(result.exitCode).toBe(1);
   expect(result.failed).toBe(1);
-  expect(result.output).toContain('Timeout of 1000ms exceeded.');
+  expect(result.output).toContain('Test timeout of 1000ms exceeded.');
 });
 
 test('should validate configuration object', async ({ runInlineTest }) => {
@@ -175,7 +175,7 @@ test('should throw a nice error if a js file uses import', async ({ runInlineTes
   });
   expect(exitCode).toBe(1);
   expect(output).toContain('a.spec.js');
-  expect(output).toContain('JavaScript files must end with .mjs to use import.');
+  expect(output).toContain('Cannot use import statement outside a module');
 });
 
 test('should load esm when package.json has type module', async ({ runInlineTest }) => {
@@ -238,7 +238,7 @@ test('should fail to load ts from esm when package.json has type module', async 
   });
 
   expect(result.exitCode).toBe(1);
-  expect(result.output).toContain('Cannot import a typescript file from an esmodule');
+  expect(result.output).toContain('Unknown file extension ".ts"');
 });
 
 test('should filter stack trace for simple expect', async ({ runInlineTest }) => {

@@ -68,7 +68,7 @@ Examples:
 commandWithOpenOptions('codegen [url]', 'open page and generate code for user actions',
     [
       ['-o, --output <file name>', 'saves the generated script to a file'],
-      ['--target <language>', `language to generate, one of javascript, test, python, python-async, csharp`, language()],
+      ['--target <language>', `language to generate, one of javascript, test, python, python-async, pytest, csharp, java`, language()],
     ]).action(function(url, options) {
   codegen(options, url, options.target, options.output).catch(logErrorAndExit);
 }).addHelpText('afterAll', `
@@ -352,6 +352,9 @@ type Options = {
   loadStorage?: string;
   proxyServer?: string;
   proxyBypass?: string;
+  blockServiceWorkers?: boolean;
+  saveHar?: string;
+  saveHarGlob?: string;
   saveStorage?: string;
   saveTrace?: string;
   timeout: string;
@@ -391,6 +394,9 @@ async function launchContext(options: Options, headless: boolean, executablePath
 
   if (contextOptions.isMobile && browserType.name() === 'firefox')
     contextOptions.isMobile = undefined;
+
+  if (options.blockServiceWorkers)
+    contextOptions.serviceWorkers = 'block';
 
   // Proxy
 
@@ -459,6 +465,15 @@ async function launchContext(options: Options, headless: boolean, executablePath
   if (options.ignoreHttpsErrors)
     contextOptions.ignoreHTTPSErrors = true;
 
+  // HAR
+
+  if (options.saveHar) {
+    contextOptions.recordHar = { path: path.resolve(process.cwd(), options.saveHar), mode: 'minimal' };
+    if (options.saveHarGlob)
+      contextOptions.recordHar.urlFilter = options.saveHarGlob;
+    contextOptions.serviceWorkers = 'block';
+  }
+
   // Close app when the last window closes.
 
   const context = await browser.newContext(contextOptions);
@@ -474,6 +489,8 @@ async function launchContext(options: Options, headless: boolean, executablePath
       await context.tracing.stop({ path: options.saveTrace });
     if (options.saveStorage)
       await context.storageState({ path: options.saveStorage }).catch(e => null);
+    if (options.saveHar)
+      await context.close();
     await browser.close();
   }
 
@@ -487,10 +504,9 @@ async function launchContext(options: Options, headless: boolean, executablePath
       closeBrowser().catch(e => null);
     });
   });
-  if (options.timeout) {
-    context.setDefaultTimeout(parseInt(options.timeout, 10));
-    context.setDefaultNavigationTimeout(parseInt(options.timeout, 10));
-  }
+  const timeout = options.timeout ? parseInt(options.timeout, 10) : 0;
+  context.setDefaultTimeout(timeout);
+  context.setDefaultNavigationTimeout(timeout);
 
   if (options.saveTrace)
     await context.tracing.start({ screenshots: true, snapshots: true });
@@ -628,6 +644,7 @@ function commandWithOpenOptions(command: string, description: string, options: a
     result = result.option(option[0], ...option.slice(1));
   return result
       .option('-b, --browser <browserType>', 'browser to use, one of cr, chromium, ff, firefox, wk, webkit', 'chromium')
+      .option('--block-service-workers', 'block service workers')
       .option('--channel <channel>', 'Chromium distribution channel, "chrome", "chrome-beta", "msedge-dev", etc')
       .option('--color-scheme <scheme>', 'emulate preferred color scheme, "light" or "dark"')
       .option('--device <deviceName>', 'emulate device, for example  "iPhone 11"')
@@ -637,10 +654,12 @@ function commandWithOpenOptions(command: string, description: string, options: a
       .option('--lang <language>', 'specify language / locale, for example "en-GB"')
       .option('--proxy-server <proxy>', 'specify proxy server, for example "http://myproxy:3128" or "socks5://myproxy:8080"')
       .option('--proxy-bypass <bypass>', 'comma-separated domains to bypass proxy, for example ".com,chromium.org,.domain.com"')
+      .option('--save-har <filename>', 'save HAR file with all network activity at the end')
+      .option('--save-har-glob <glob pattern>', 'filter entries in the HAR by matching url against this glob pattern')
       .option('--save-storage <filename>', 'save context storage state at the end, for later use with --load-storage')
       .option('--save-trace <filename>', 'record a trace for the session and save it to a file')
       .option('--timezone <time zone>', 'time zone to emulate, for example "Europe/Rome"')
-      .option('--timeout <timeout>', 'timeout for Playwright actions in milliseconds', '10000')
+      .option('--timeout <timeout>', 'timeout for Playwright actions in milliseconds, no timeout by default')
       .option('--user-agent <ua string>', 'specify user agent string')
       .option('--viewport-size <size>', 'specify browser viewport size in pixels, for example "1280, 720"');
 }

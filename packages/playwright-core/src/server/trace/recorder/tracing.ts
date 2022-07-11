@@ -88,8 +88,9 @@ export class Tracing extends SdkObject implements InstrumentationListener, Snaps
     super(context, 'Tracing');
     this._context = context;
     this._precreatedTracesDir = tracesDir;
-    this._harTracer = new HarTracer(context, this, {
-      content: 'sha1',
+    this._harTracer = new HarTracer(context, null, this, {
+      content: 'attach',
+      includeTraceInfo: true,
       waitForContentOnStop: false,
       skipScripts: true,
     });

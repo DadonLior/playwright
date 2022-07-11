@@ -538,6 +538,10 @@ export module Protocol {
      */
     export type PseudoId = "first-line"|"first-letter"|"highlight"|"marker"|"before"|"after"|"selection"|"backdrop"|"scrollbar"|"scrollbar-thumb"|"scrollbar-button"|"scrollbar-track"|"scrollbar-track-piece"|"scrollbar-corner"|"resizer";
     /**
+     * Pseudo-style identifier (see <code>enum PseudoId</code> in <code>RenderStyleConstants.h</code>).
+     */
+    export type ForceablePseudoClass = "active"|"focus"|"focus-visible"|"focus-within"|"hover"|"target"|"visited";
+    /**
      * CSS rule collection for a single pseudo style.
      */
     export interface PseudoIdMatches {
@@ -1167,7 +1171,7 @@ export module Protocol {
       /**
        * Element pseudo classes to force when computing the element's style.
        */
-      forcedPseudoClasses: "active"|"focus"|"hover"|"visited"[];
+      forcedPseudoClasses: ForceablePseudoClass[];
     }
     export type forcePseudoStateReturnValue = {
     }
@@ -1559,6 +1563,10 @@ export module Protocol {
        * Identifier of the network request associated with this message.
        */
       networkRequestId?: Network.RequestId;
+      /**
+       * Time when this message was added. Currently only used when an expensive operation happens to make sure that the frontend can account for it.
+       */
+      timestamp?: number;
     }
     /**
      * Stack entry for console errors and assertions.
@@ -2384,7 +2392,7 @@ export module Protocol {
       /**
        * Query selector result.
        */
-      nodeId: NodeId;
+      nodeId?: NodeId;
     }
     /**
      * Executes <code>querySelectorAll</code> on a given node.
@@ -5179,6 +5187,10 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
      */
     export type Walltime = number;
     /**
+     * Controls how much referrer information is sent with the request
+     */
+    export type ReferrerPolicy = "empty-string"|"no-referrer"|"no-referrer-when-downgrade"|"same-origin"|"origin"|"strict-origin"|"origin-when-cross-origin"|"strict-origin-when-cross-origin"|"unsafe-url";
+    /**
      * Request / response headers as keys / values of JSON object.
      */
     export type Headers = { [key: string]: string };
@@ -5255,6 +5267,14 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
        * HTTP POST request data.
        */
       postData?: string;
+      /**
+       * The level of included referrer information.
+       */
+      referrerPolicy?: ReferrerPolicy;
+      /**
+       * The base64 cryptographic hash of the resource.
+       */
+      integrity?: string;
     }
     /**
      * HTTP response data.
@@ -7838,6 +7858,23 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
        */
       context: ExecutionContextDescription;
     }
+    /**
+     * Issued when new execution context is created.
+     */
+    export type bindingCalledPayload = {
+      /**
+       * Id of the execution context where the binding was called.
+       */
+      contextId: ExecutionContextId;
+      /**
+       * Name of the bound function.
+       */
+      name: string;
+      /**
+       * String argument passed to the function.
+       */
+      argument: string;
+    }
     
     /**
      * Parses JavaScript source code for errors.
@@ -7998,6 +8035,17 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
        * True if the result was thrown during the evaluation.
        */
       wasThrown?: boolean;
+    }
+    /**
+     * Adds binding with the given name on the global objects of all inspected contexts. Each binding function call produces Runtime.bindingCalled event.
+     */
+    export type addBindingParameters = {
+      /**
+       * Name of the bound function.
+       */
+      name: string;
+    }
+    export type addBindingReturnValue = {
     }
     /**
      * Returns a preview for the given object.
@@ -8564,11 +8612,11 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
     /**
      * Timeline record type.
      */
-    export type EventType = "EventDispatch"|"ScheduleStyleRecalculation"|"RecalculateStyles"|"InvalidateLayout"|"Layout"|"Paint"|"Composite"|"RenderingFrame"|"TimerInstall"|"TimerRemove"|"TimerFire"|"EvaluateScript"|"TimeStamp"|"Time"|"TimeEnd"|"FunctionCall"|"ProbeSample"|"ConsoleProfile"|"RequestAnimationFrame"|"CancelAnimationFrame"|"FireAnimationFrame"|"ObserverCallback";
+    export type EventType = "EventDispatch"|"ScheduleStyleRecalculation"|"RecalculateStyles"|"InvalidateLayout"|"Layout"|"Paint"|"Composite"|"RenderingFrame"|"TimerInstall"|"TimerRemove"|"TimerFire"|"EvaluateScript"|"TimeStamp"|"Time"|"TimeEnd"|"FunctionCall"|"ProbeSample"|"ConsoleProfile"|"RequestAnimationFrame"|"CancelAnimationFrame"|"FireAnimationFrame"|"ObserverCallback"|"Screenshot";
     /**
      * Instrument types.
      */
-    export type Instrument = "ScriptProfiler"|"Timeline"|"CPU"|"Memory"|"Heap"|"Animation";
+    export type Instrument = "ScriptProfiler"|"Timeline"|"CPU"|"Memory"|"Heap"|"Animation"|"Screenshot";
     /**
      * Timeline record contains information about the recorded activity.
      */
@@ -8850,6 +8898,7 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
     "Playwright.downloadFinished": Playwright.downloadFinishedPayload;
     "Playwright.screencastFinished": Playwright.screencastFinishedPayload;
     "Runtime.executionContextCreated": Runtime.executionContextCreatedPayload;
+    "Runtime.bindingCalled": Runtime.bindingCalledPayload;
     "Screencast.screencastFrame": Screencast.screencastFramePayload;
     "ScriptProfiler.trackingStart": ScriptProfiler.trackingStartPayload;
     "ScriptProfiler.trackingUpdate": ScriptProfiler.trackingUpdatePayload;
@@ -9128,6 +9177,7 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
     "Runtime.evaluate": Runtime.evaluateParameters;
     "Runtime.awaitPromise": Runtime.awaitPromiseParameters;
     "Runtime.callFunctionOn": Runtime.callFunctionOnParameters;
+    "Runtime.addBinding": Runtime.addBindingParameters;
     "Runtime.getPreview": Runtime.getPreviewParameters;
     "Runtime.getProperties": Runtime.getPropertiesParameters;
     "Runtime.getDisplayableProperties": Runtime.getDisplayablePropertiesParameters;
@@ -9430,6 +9480,7 @@ the top of the viewport and Y increases as it proceeds towards the bottom of the
     "Runtime.evaluate": Runtime.evaluateReturnValue;
     "Runtime.awaitPromise": Runtime.awaitPromiseReturnValue;
     "Runtime.callFunctionOn": Runtime.callFunctionOnReturnValue;
+    "Runtime.addBinding": Runtime.addBindingReturnValue;
     "Runtime.getPreview": Runtime.getPreviewReturnValue;
     "Runtime.getProperties": Runtime.getPropertiesReturnValue;
     "Runtime.getDisplayableProperties": Runtime.getDisplayablePropertiesReturnValue;

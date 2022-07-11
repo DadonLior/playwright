@@ -31,7 +31,7 @@ export class BrowserDispatcher extends Dispatcher<Browser, channels.BrowserChann
   _type_Browser = true;
   constructor(scope: DispatcherScope, browser: Browser) {
     super(scope, browser, 'Browser', { version: browser.version(), name: browser.options.name }, true);
-    browser.on(Browser.Events.Disconnected, () => this._didClose());
+    this.addObjectListener(Browser.Events.Disconnected, () => this._didClose());
   }
 
   _didClose() {
@@ -70,8 +70,7 @@ export class BrowserDispatcher extends Dispatcher<Browser, channels.BrowserChann
     if (!this._object.options.isChromium)
       throw new Error(`Tracing is only available in Chromium`);
     const crBrowser = this._object as CRBrowser;
-    const buffer = await crBrowser.stopTracing();
-    return { binary: buffer.toString('base64') };
+    return { binary: await crBrowser.stopTracing() };
   }
 }
 
@@ -124,8 +123,7 @@ export class ConnectedBrowserDispatcher extends Dispatcher<Browser, channels.Bro
     if (!this._object.options.isChromium)
       throw new Error(`Tracing is only available in Chromium`);
     const crBrowser = this._object as CRBrowser;
-    const buffer = await crBrowser.stopTracing();
-    return { binary: buffer.toString('base64') };
+    return { binary: await crBrowser.stopTracing() };
   }
 
   async cleanupContexts() {

@@ -33,7 +33,8 @@ it.describe('page screenshot', () => {
     expect(screenshot).toMatchSnapshot('screenshot-sanity.png');
   });
 
-  it('should not capture blinking caret by default', async ({ page, server }) => {
+  it('should not capture blinking caret by default', async ({ page, server, browserName }) => {
+    it.fixme(browserName === 'chromium' && process.platform === 'darwin', 'https://crbug.com/1342540');
     await page.setContent(`
       <!-- Refer to stylesheet from other origin. Accessing this
            stylesheet rules will throw.
@@ -60,7 +61,8 @@ it.describe('page screenshot', () => {
     }
   });
 
-  it('should capture blinking caret if explicitly asked for', async ({ page, server }) => {
+  it('should capture blinking caret if explicitly asked for', async ({ page, server, browserName }) => {
+    it.fixme(browserName === 'firefox', 'browser-level screenshot API in firefox does not capture caret');
     await page.setContent(`
       <!-- Refer to stylesheet from other origin. Accessing this
            stylesheet rules will throw.
@@ -202,7 +204,7 @@ it.describe('page screenshot', () => {
   it('should render white background on jpeg file', async ({ page, server, isElectron }) => {
     it.fixme(isElectron, 'omitBackground with jpeg does not work');
 
-    await page.setViewportSize({ width: 100, height: 100 });
+    await page.setViewportSize({ width: 300, height: 300 });
     await page.goto(server.EMPTY_PAGE);
     const screenshot = await page.screenshot({ omitBackground: true, type: 'jpeg' });
     expect(screenshot).toMatchSnapshot('white.jpg');
@@ -230,7 +232,7 @@ it.describe('page screenshot', () => {
   });
 
   it('should capture canvas changes', async ({ page, isElectron, browserName, isMac }) => {
-    it.fail(browserName === 'webkit' && isMac && parseInt(os.release(), 10) <= 20, 'https://github.com/microsoft/playwright/issues/8796');
+    it.fixme(browserName === 'webkit' && isMac && parseInt(os.release(), 10) < 20, 'https://github.com/microsoft/playwright/issues/8796');
     it.skip(isElectron);
     await page.goto('data:text/html,<canvas></canvas>');
     await page.evaluate(() => {
@@ -314,7 +316,7 @@ it.describe('page screenshot', () => {
   it('path option should detect jpeg', async ({ page, server, isElectron }, testInfo) => {
     it.fixme(isElectron, 'omitBackground with jpeg does not work');
 
-    await page.setViewportSize({ width: 100, height: 100 });
+    await page.setViewportSize({ width: 300, height: 300 });
     await page.goto(server.EMPTY_PAGE);
     const outputPath = testInfo.outputPath('screenshot.jpg');
     const screenshot = await page.screenshot({ omitBackground: true, path: outputPath });

@@ -28,11 +28,9 @@ class ListReporter extends BaseReporter {
   private _lastRow = 0;
   private _testRows = new Map<TestCase, number>();
   private _needNewLine = false;
-  private readonly _liveTerminal: string | boolean | undefined;
 
   constructor(options: { omitFailures?: boolean } = {}) {
     super(options);
-    this._liveTerminal = process.stdout.isTTY || !!process.env.PWTEST_TTY_WIDTH;
   }
 
   printsToStdio() {
@@ -46,15 +44,15 @@ class ListReporter extends BaseReporter {
   }
 
   onTestBegin(test: TestCase, result: TestResult) {
-    if (this._liveTerminal) {
+    if (this.liveTerminal) {
       if (this._needNewLine) {
         this._needNewLine = false;
         process.stdout.write('\n');
         this._lastRow++;
       }
-      const line = '     ' + colors.gray(formatTestTitle(this.config, test));
-      const suffix = this._retrySuffix(result);
-      process.stdout.write(this.fitToScreen(line, suffix) + suffix + '\n');
+      const prefix = '     ';
+      const line = colors.gray(formatTestTitle(this.config, test)) + this._retrySuffix(result);
+      process.stdout.write(prefix + this.fitToScreen(line, prefix) + '\n');
     }
     this._testRows.set(test, this._lastRow++);
   }
@@ -70,19 +68,19 @@ class ListReporter extends BaseReporter {
   }
 
   onStepBegin(test: TestCase, result: TestResult, step: TestStep) {
-    if (!this._liveTerminal)
+    if (!this.liveTerminal)
       return;
     if (step.category !== 'test.step')
       return;
-    this._updateTestLine(test, '     ' + colors.gray(formatTestTitle(this.config, test, step)), this._retrySuffix(result));
+    this._updateTestLine(test, colors.gray(formatTestTitle(this.config, test, step)) + this._retrySuffix(result), '     ');
   }
 
   onStepEnd(test: TestCase, result: TestResult, step: TestStep) {
-    if (!this._liveTerminal)
+    if (!this.liveTerminal)
       return;
     if (step.category !== 'test.step')
       return;
-    this._updateTestLine(test, '     ' + colors.gray(formatTestTitle(this.config, test, step.parent)), this._retrySuffix(result));
+    this._updateTestLine(test, colors.gray(formatTestTitle(this.config, test, step.parent)) + this._retrySuffix(result), '     ');
   }
 
   private _dumpToStdio(test: TestCase | undefined, chunk: string | Buffer, stream: NodeJS.WriteStream) {
@@ -90,7 +88,7 @@ class ListReporter extends BaseReporter {
       return;
     const text = chunk.toString('utf-8');
     this._needNewLine = text[text.length - 1] !== '\n';
-    if (this._liveTerminal) {
+    if (this.liveTerminal) {
       const newLineCount = text.split('\n').length - 1;
       this._lastRow += newLineCount;
     }
@@ -100,60 +98,66 @@ class ListReporter extends BaseReporter {
   override onTestEnd(test: TestCase, result: TestResult) {
     super.onTestEnd(test, result);
 
-    let duration = colors.dim(` (${milliseconds(result.duration)})`);
     const title = formatTestTitle(this.config, test);
+    let prefix = '';
     let text = '';
     if (result.status === 'skipped') {
-      text = colors.green('  -  ') + colors.cyan(title);
-      duration = ''; // Do not show duration for skipped.
+      prefix = colors.green('  -  ');
+      // Do not show duration for skipped.
+      text = colors.cyan(title) + this._retrySuffix(result);
     } else {
       const statusMark = ('  ' + (result.status === 'passed' ? POSITIVE_STATUS_MARK : NEGATIVE_STATUS_MARK)).padEnd(5);
-      if (result.status === test.expectedStatus)
-        text = colors.green(statusMark) + colors.gray(title);
-      else
-        text = colors.red(statusMark + title);
+      if (result.status === test.expectedStatus) {
+        prefix = colors.green(statusMark);
+        text = colors.gray(title);
+      } else {
+        prefix = colors.red(statusMark);
+        text = colors.red(title);
+      }
+      text += this._retrySuffix(result) + colors.dim(` (${milliseconds(result.duration)})`);
     }
-    const suffix = this._retrySuffix(result) + duration;
 
-    if (this._liveTerminal) {
-      this._updateTestLine(test, text, suffix);
+    if (this.liveTerminal) {
+      this._updateTestLine(test, text, prefix);
     } else {
       if (this._needNewLine) {
         this._needNewLine = false;
         process.stdout.write('\n');
       }
-      process.stdout.write(text + suffix);
+      process.stdout.write(prefix + text);
       process.stdout.write('\n');
     }
   }
 
-  private _updateTestLine(test: TestCase, line: string, suffix: string) {
+  private _updateTestLine(test: TestCase, line: string, prefix: string) {
     if (process.env.PW_TEST_DEBUG_REPORTERS)
-      this._updateTestLineForTest(test, line, suffix);
+      this._updateTestLineForTest(test, line, prefix);
     else
-      this._updateTestLineForTTY(test, line, suffix);
+      this._updateTestLineForTTY(test, line, prefix);
   }
 
-  private _updateTestLineForTTY(test: TestCase, line: string, suffix: string) {
+  private _updateTestLineForTTY(test: TestCase, line: string, prefix: string) {
     const testRow = this._testRows.get(test)!;
     // Go up if needed
     if (testRow !== this._lastRow)
       process.stdout.write(`\u001B[${this._lastRow - testRow}A`);
     // Erase line, go to the start
     process.stdout.write('\u001B[2K\u001B[0G');
-    process.stdout.write(this.fitToScreen(line, suffix) + suffix);
+    process.stdout.write(prefix + this.fitToScreen(line, prefix));
     // Go down if needed.
     if (testRow !== this._lastRow)
       process.stdout.write(`\u001B[${this._lastRow - testRow}E`);
+    if (process.env.PWTEST_TTY_WIDTH)
+      process.stdout.write('\n');  // For testing.
   }
 
   private _retrySuffix(result: TestResult) {
     return (result.retry ? colors.yellow(` (retry #${result.retry})`) : '');
   }
 
-  private _updateTestLineForTest(test: TestCase, line: string, suffix: string) {
+  private _updateTestLineForTest(test: TestCase, line: string, prefix: string) {
     const testRow = this._testRows.get(test)!;
-    process.stdout.write(testRow + ' : ' + line + suffix + '\n');
+    process.stdout.write(testRow + ' : ' + prefix + line + '\n');
   }
 
   override async onEnd(result: FullResult) {
