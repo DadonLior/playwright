@@ -65,10 +65,10 @@ export interface PageDelegate {
   navigateFrame(frame: frames.Frame, url: string, referrer: string | undefined): Promise<frames.GotoResult>;
 
   updateExtraHTTPHeaders(): Promise<void>;
-  updateEmulatedViewportSize(): Promise<void>;
+  updateEmulatedViewportSize(preserveWindowBoundaries?: boolean): Promise<void>;
   updateEmulateMedia(): Promise<void>;
   updateRequestInterception(): Promise<void>;
-  updateFileChooserInterception(enabled: boolean): Promise<void>;
+  updateFileChooserInterception(): Promise<void>;
   bringToFront(): Promise<void>;
 
   setBackgroundColor(color?: { r: number; g: number; b: number; a: number; }): Promise<void>;
@@ -227,6 +227,33 @@ export class Page extends SdkObject {
     this._browserContext.emit(event, ...args);
   }
 
+  async resetForReuse(metadata: CallMetadata) {
+    this.setDefaultNavigationTimeout(undefined);
+    this.setDefaultTimeout(undefined);
+
+    // Do this first in order to unfreeze evaluates.
+    await this._frameManager.closeOpenDialogs();
+
+    await this._removeExposedBindings();
+    await this._removeInitScripts();
+
+    // TODO: handle pending routes.
+    await this.setClientRequestInterceptor(undefined);
+    await this._setServerRequestInterceptor(undefined);
+    await this.setFileChooserIntercepted(false);
+    await this.mainFrame().goto(metadata, 'about:blank');
+    this._emulatedSize = undefined;
+    this._emulatedMedia = {};
+    this._extraHTTPHeaders = undefined;
+    this._interceptFileChooser = false;
+
+    await Promise.all([
+      this._delegate.updateEmulatedViewportSize(true),
+      this._delegate.updateEmulateMedia(),
+      this._delegate.updateFileChooserInterception(),
+    ]);
+  }
+
   async _doSlowMo() {
     const slowMo = this._browserContext._browser.options.slowMo;
     if (!slowMo)
@@ -311,7 +338,7 @@ export class Page extends SdkObject {
     await this._delegate.exposeBinding(binding);
   }
 
-  async removeExposedBindings() {
+  async _removeExposedBindings() {
     for (const key of this._pageBindings.keys()) {
       if (!key.startsWith('__pw'))
         this._pageBindings.delete(key);
@@ -408,6 +435,7 @@ export class Page extends SdkObject {
       this._emulatedMedia.reducedMotion = options.reducedMotion;
     if (options.forcedColors !== undefined)
       this._emulatedMedia.forcedColors = options.forcedColors;
+
     await this._delegate.updateEmulateMedia();
     await this._doSlowMo();
   }
@@ -448,7 +476,7 @@ export class Page extends SdkObject {
     await this._delegate.addInitScript(source);
   }
 
-  async removeInitScripts() {
+  async _removeInitScripts() {
     this.initScripts.splice(0, this.initScripts.length);
     await this._delegate.removeInitScripts();
   }
@@ -619,7 +647,7 @@ export class Page extends SdkObject {
 
   async setFileChooserIntercepted(enabled: boolean): Promise<void> {
     this._interceptFileChooser = enabled;
-    await this._delegate.updateFileChooserInterception(enabled);
+    await this._delegate.updateFileChooserInterception();
   }
 
   fileChooserIntercepted() {

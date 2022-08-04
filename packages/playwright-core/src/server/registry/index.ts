@@ -20,7 +20,7 @@ import path from 'path';
 import * as util from 'util';
 import * as fs from 'fs';
 import { lockfile } from '../../utilsBundle';
-import { getUbuntuVersion } from '../../utils/ubuntuVersion';
+import { getLinuxDistributionInfo } from '../../utils/linuxUtils';
 import { fetchData } from '../../common/netUtils';
 import { getClientLanguage } from '../../common/userAgent';
 import { getFromENV, getAsBooleanFromENV, calculateSha1, wrapInASCIIBox } from '../../utils';
@@ -84,6 +84,7 @@ const DOWNLOAD_PATHS = {
     'ubuntu18.04-arm64': 'builds/chromium/%s/chromium-linux-arm64.zip',
     'ubuntu20.04-arm64': 'builds/chromium/%s/chromium-linux-arm64.zip',
     'ubuntu22.04-arm64': 'builds/chromium/%s/chromium-linux-arm64.zip',
+    'debian11': 'builds/chromium/%s/chromium-linux.zip',
     'mac10.13': 'builds/chromium/%s/chromium-mac.zip',
     'mac10.14': 'builds/chromium/%s/chromium-mac.zip',
     'mac10.15': 'builds/chromium/%s/chromium-mac.zip',
@@ -103,6 +104,7 @@ const DOWNLOAD_PATHS = {
     'ubuntu18.04-arm64': 'builds/chromium-tip-of-tree/%s/chromium-tip-of-tree-linux-arm64.zip',
     'ubuntu20.04-arm64': 'builds/chromium-tip-of-tree/%s/chromium-tip-of-tree-linux-arm64.zip',
     'ubuntu22.04-arm64': 'builds/chromium-tip-of-tree/%s/chromium-tip-of-tree-linux-arm64.zip',
+    'debian11': 'builds/chromium-tip-of-tree/%s/chromium-tip-of-tree-linux.zip',
     'mac10.13': 'builds/chromium-tip-of-tree/%s/chromium-tip-of-tree-mac.zip',
     'mac10.14': 'builds/chromium-tip-of-tree/%s/chromium-tip-of-tree-mac.zip',
     'mac10.15': 'builds/chromium-tip-of-tree/%s/chromium-tip-of-tree-mac.zip',
@@ -122,6 +124,7 @@ const DOWNLOAD_PATHS = {
     'ubuntu18.04-arm64': 'builds/chromium/%s/chromium-with-symbols-linux-arm64.zip',
     'ubuntu20.04-arm64': 'builds/chromium/%s/chromium-with-symbols-linux-arm64.zip',
     'ubuntu22.04-arm64': 'builds/chromium/%s/chromium-with-symbols-linux-arm64.zip',
+    'debian11': 'builds/chromium/%s/chromium-with-symbols-linux.zip',
     'mac10.13': 'builds/chromium/%s/chromium-with-symbols-mac.zip',
     'mac10.14': 'builds/chromium/%s/chromium-with-symbols-mac.zip',
     'mac10.15': 'builds/chromium/%s/chromium-with-symbols-mac.zip',
@@ -141,6 +144,7 @@ const DOWNLOAD_PATHS = {
     'ubuntu18.04-arm64': undefined,
     'ubuntu20.04-arm64': 'builds/firefox/%s/firefox-ubuntu-20.04-arm64.zip',
     'ubuntu22.04-arm64': 'builds/firefox/%s/firefox-ubuntu-22.04-arm64.zip',
+    'debian11': 'builds/firefox/%s/firefox-debian-11.zip',
     'mac10.13': 'builds/firefox/%s/firefox-mac-11.zip',
     'mac10.14': 'builds/firefox/%s/firefox-mac-11.zip',
     'mac10.15': 'builds/firefox/%s/firefox-mac-11.zip',
@@ -160,6 +164,7 @@ const DOWNLOAD_PATHS = {
     'ubuntu18.04-arm64': undefined,
     'ubuntu20.04-arm64': undefined,
     'ubuntu22.04-arm64': 'builds/firefox-beta/%s/firefox-beta-ubuntu-22.04-arm64.zip',
+    'debian11': 'builds/firefox-beta/%s/firefox-beta-debian-11.zip',
     'mac10.13': 'builds/firefox-beta/%s/firefox-beta-mac-11.zip',
     'mac10.14': 'builds/firefox-beta/%s/firefox-beta-mac-11.zip',
     'mac10.15': 'builds/firefox-beta/%s/firefox-beta-mac-11.zip',
@@ -179,6 +184,7 @@ const DOWNLOAD_PATHS = {
     'ubuntu18.04-arm64': undefined,
     'ubuntu20.04-arm64': 'builds/webkit/%s/webkit-ubuntu-20.04-arm64.zip',
     'ubuntu22.04-arm64': 'builds/webkit/%s/webkit-ubuntu-22.04-arm64.zip',
+    'debian11': 'builds/webkit/%s/webkit-debian-11.zip',
     'mac10.13': undefined,
     'mac10.14': 'builds/deprecated-webkit-mac-10.14/%s/deprecated-webkit-mac-10.14.zip',
     'mac10.15': 'builds/webkit/%s/webkit-mac-10.15.zip',
@@ -198,6 +204,7 @@ const DOWNLOAD_PATHS = {
     'ubuntu18.04-arm64': 'builds/ffmpeg/%s/ffmpeg-linux-arm64.zip',
     'ubuntu20.04-arm64': 'builds/ffmpeg/%s/ffmpeg-linux-arm64.zip',
     'ubuntu22.04-arm64': 'builds/ffmpeg/%s/ffmpeg-linux-arm64.zip',
+    'debian11': 'builds/ffmpeg/%s/ffmpeg-linux.zip',
     'mac10.13': 'builds/ffmpeg/%s/ffmpeg-mac.zip',
     'mac10.14': 'builds/ffmpeg/%s/ffmpeg-mac.zip',
     'mac10.15': 'builds/ffmpeg/%s/ffmpeg-mac.zip',
@@ -321,11 +328,11 @@ export class Registry {
     const descriptors = readDescriptors(browsersJSON);
     const findExecutablePath = (dir: string, name: keyof typeof EXECUTABLE_PATHS) => {
       let tokens = undefined;
-      if (hostPlatform.startsWith('ubuntu') || hostPlatform.startsWith('generic-linux'))
+      if (process.platform === 'linux')
         tokens = EXECUTABLE_PATHS[name]['linux'];
-      else if (hostPlatform.startsWith('mac'))
+      else if (process.platform === 'darwin')
         tokens = EXECUTABLE_PATHS[name]['mac'];
-      else if (hostPlatform.startsWith('win'))
+      else if (process.platform === 'win32')
         tokens = EXECUTABLE_PATHS[name]['win'];
       return tokens ? path.join(dir, ...tokens) : undefined;
     };
@@ -607,8 +614,8 @@ export class Registry {
       process.stdout.write('Skipping host requirements validation logic because `PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS` env variable is set.\n');
       return;
     }
-    const ubuntuVersion = await getUbuntuVersion();
-    if (browserName === 'firefox' && ubuntuVersion === '16.04')
+    const distributionInfo = await getLinuxDistributionInfo();
+    if (browserName === 'firefox' && distributionInfo?.id === 'ubuntu' && distributionInfo?.version === '16.04')
       throw new Error(`Cannot launch Firefox on Ubuntu 16.04! Minimum required Ubuntu version for Firefox browser is 18.04`);
 
     if (os.platform() === 'linux')
@@ -714,7 +721,7 @@ export class Registry {
     if (!downloadPathTemplate || !executablePath)
       throw new Error(`ERROR: Playwright does not support ${descriptor.name} on ${hostPlatform}`);
     if (hostPlatform === 'generic-linux' || hostPlatform === 'generic-linux-arm64')
-      logPolitely('BEWARE: your OS is not officially supported by Playwright; downloading Ubuntu build as a fallback.');
+      logPolitely('BEWARE: your OS is not officially supported by Playwright; downloading fallback build.');
     const downloadPath = util.format(downloadPathTemplate, descriptor.revision);
 
     let downloadURLs = PLAYWRIGHT_CDN_MIRRORS.map(mirror => `${mirror}/${downloadPath}`) ;
@@ -739,21 +746,22 @@ export class Registry {
   private async _installMSEdgeChannel(channel: 'msedge'|'msedge-beta'|'msedge-dev', scripts: Record<'linux' | 'darwin' | 'win32', string>) {
     const scriptArgs: string[] = [];
     if (process.platform !== 'linux') {
-      const products = JSON.parse(await fetchData({ url: 'https://edgeupdates.microsoft.com/api/products' }));
+      const products = lowercaseAllKeys(JSON.parse(await fetchData({ url: 'https://edgeupdates.microsoft.com/api/products' })));
+
       const productName = {
         'msedge': 'Stable',
         'msedge-beta': 'Beta',
         'msedge-dev': 'Dev',
       }[channel];
-      const product = products.find((product: any) => product.Product === productName);
+      const product = products.find((product: any) => product.product === productName);
       const searchConfig = ({
         darwin: { platform: 'MacOS', arch: 'universal', artifact: 'pkg' },
         win32: { platform: 'Windows', arch: 'x64', artifact: 'msi' },
       } as any)[process.platform];
-      const release = searchConfig ? product.Releases.find((release: any) => release.Platform === searchConfig.platform && release.Architecture === searchConfig.arch) : null;
-      const artifact = release ? release.Artifacts.find((artifact: any) => artifact.ArtifactName === searchConfig.artifact) : null;
+      const release = searchConfig ? product.releases.find((release: any) => release.platform === searchConfig.platform && release.architecture === searchConfig.arch) : null;
+      const artifact = release ? release.artifacts.find((artifact: any) => artifact.artifactname === searchConfig.artifact) : null;
       if (artifact)
-        scriptArgs.push(artifact.Location /* url */);
+        scriptArgs.push(artifact.location /* url */);
       else
         throw new Error(`Cannot install ${channel} on ${process.platform}`);
     }
@@ -899,6 +907,19 @@ export function findChromiumChannel(sdkLanguage: string): string | undefined {
     throw new Error('\n' + wrapInASCIIBox(prettyMessage, 1));
   }
   return channel;
+}
+
+function lowercaseAllKeys(json: any): any {
+  if (typeof json !== 'object' || !json)
+    return json;
+
+  if (Array.isArray(json))
+    return json.map(lowercaseAllKeys);
+
+  const result: any = {};
+  for (const [key, value] of Object.entries(json))
+    result[key.toLowerCase()] = lowercaseAllKeys(value);
+  return result;
 }
 
 export const registry = new Registry(require('../../../browsers.json'));

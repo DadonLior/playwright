@@ -5,6 +5,25 @@ title: "Release notes"
 
 <!-- TOC -->
 
+## Version 1.24
+
+### 🐂 Debian 11 Bullseye Support
+
+Playwright now supports Debian 11 Bullseye on x86_64 for Chromium, Firefox and WebKit. Let us know
+if you encounter any issues!
+
+Linux support looks like this:
+
+|          | Ubuntu 18.04 | Ubuntu 20.04 | Ubuntu 22.04 | Debian 11
+| :--- | :---: | :---: | :---: | :---: | 
+| Chromium | ✅ | ✅ | ✅ | ✅ |
+| WebKit | ✅ | ✅ | ✅ | ✅ |
+| Firefox | ✅ | ✅ | ✅ | ✅ |
+
+### New introduction docs
+
+We rewrote our Getting Started docs to be more end-to-end testing focused. Check them out on [playwright.dev](https://playwright.dev/dotnet/docs/intro).
+
 ## Version 1.23
 
 ### API Testing
@@ -44,7 +63,7 @@ pwsh bin\Debug\netX\playwright.ps1 open --save-har=example.har --save-har-glob="
 Alternatively, you can record HAR programmatically:
 
 ```csharp
-var context = await browser.NewContextAsync(new ()
+var context = await browser.NewContextAsync(new()
 {
   RecordHarPath = harPath,
   RecordHarUrlFilterString = "**/api/**",
@@ -78,7 +97,7 @@ await page.RouteAsync("**/*", async route =>
 {
     var headers = route.Request.Headers;
     headers.Remove("X-Secret");
-    await route.ContinueAsync(new () { Headers = headers });
+    await route.ContinueAsync(new() { Headers = headers });
 });
 
 // Abort all images.
@@ -131,7 +150,7 @@ Note that the new methods [`method: Page.routeFromHAR`] and [`method: BrowserCon
 
   ```csharp
   // Click a button with accessible name "log in"
-  await page.ClickAsync("role=button[name='log in']")
+  await page.Locator("role=button[name='log in']").ClickAsync();
   ```
 
   Read more in [our documentation](./selectors#role-selector).
@@ -153,7 +172,7 @@ Note that the new methods [`method: Page.routeFromHAR`] and [`method: BrowserCon
 
   ```csharp
   // Click a button with accessible name "log in"
-  await page.ClickAsync("role=button[name='log in']")
+  await page.Locator("role=button[name='log in']").ClickAsync();
   ```
 
   Read more in [our documentation](./selectors#role-selector).
@@ -190,7 +209,7 @@ using System.Threading.Tasks;
 using Microsoft.Playwright.NUnit;
 using NUnit.Framework;
 
-namespace Playwright.TestingHarnessTest.NUnit;
+namespace PlaywrightTests;
 
 public class ExampleTests : PageTest
 {
@@ -238,7 +257,7 @@ This version was also tested against the following stable channels:
 - Locator now supports a `has` option that makes sure it contains another locator inside:
 
   ```csharp
-  await Page.Locator("article", new () { Has = Page.Locator(".highlight") }).ClickAsync();
+  await Page.Locator("article", new() { Has = Page.Locator(".highlight") }).ClickAsync();
   ```
 
   Read more in [locator documentation](./api/class-locator#locator-locator-option-has)
@@ -266,7 +285,7 @@ This version was also tested against the following stable channels:
 - [`method: Locator.dragTo`]
 - Each locator can now be optionally filtered by the text it contains:
     ```csharp
-    await Page.Locator("li", new () { HasTextString = "My Item" })
+    await Page.Locator("li", new() { HasTextString = "My Item" })
               .Locator("button").click();
     ```
     Read more in [locator documentation](./api/class-locator#locator-locator-option-has-text)
@@ -327,7 +346,7 @@ Playwright Trace Viewer is now **available online** at https://trace.playwright.
 
 ![image](https://user-images.githubusercontent.com/746130/141877402-e486643d-72c7-4db3-8844-ed2072c5d676.png)
 
-## Ubuntu ARM64 support + more
+### Ubuntu ARM64 support + more
 
 - Playwright now supports **Ubuntu 20.04 ARM64**. You can now run Playwright tests inside Docker on Apple M1 and on Raspberry Pi.
 - You can now use Playwright to install stable version of Edge on Linux:
@@ -426,7 +445,7 @@ Set `setStrict(true)` in your action calls to opt in.
 
 ```csharp
 // This will throw if you have more than one button!
-await page.ClickAsync("button", new Page.ClickOptions().setStrict(true));
+await page.Locator("button", new() { Strict = true });
 ```
 
 #### 📍 New [**Locators API**](./api/class-locator)
@@ -449,8 +468,8 @@ Learn more in the [documentation](./api/class-locator).
 React and Vue selectors allow selecting elements by its component name and/or property values. The syntax is very similar to [attribute selectors](https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors) and supports all attribute selector operators.
 
 ```csharp
-await page.ClickAsync("_react=SubmitButton[enabled=true]");
-await page.ClickAsync("_vue=submit-button[enabled=true]");
+await page.Locator("_react=SubmitButton[enabled=true]").ClickAsync();
+await page.Locator("_vue=submit-button[enabled=true]").ClickAsync();
 ```
 
 Learn more in the [react selectors documentation](./selectors#react-selectors) and the [vue selectors documentation](./selectors#vue-selectors).

@@ -41,6 +41,8 @@ if ((process as any)['__pw_initiator__']) {
 
 type TestFixtures = PlaywrightTestArgs & PlaywrightTestOptions & {
   _combinedContextOptions: BrowserContextOptions,
+  _contextReuseEnabled: boolean,
+  _reuseContext: boolean,
   _setupContextOptionsAndArtifacts: void;
   _contextFactory: (options?: BrowserContextOptions) => Promise<BrowserContext>;
 };
@@ -68,7 +70,7 @@ export const test = _baseTest.extend<TestFixtures, WorkerFixtures>({
   headless: [ ({ launchOptions }, use) => use(launchOptions.headless ?? true), { scope: 'worker', option: true } ],
   channel: [ ({ launchOptions }, use) => use(launchOptions.channel), { scope: 'worker', option: true } ],
   launchOptions: [ {}, { scope: 'worker', option: true } ],
-  connectOptions: [ undefined, { scope: 'worker', option: true } ],
+  connectOptions: [ process.env.PW_TEST_CONNECT_WS_ENDPOINT ? { wsEndpoint: process.env.PW_TEST_CONNECT_WS_ENDPOINT } : undefined, { scope: 'worker', option: true } ],
   screenshot: [ 'off', { scope: 'worker', option: true } ],
   video: [ 'off', { scope: 'worker', option: true } ],
   trace: [ 'off', { scope: 'worker', option: true } ],
@@ -104,7 +106,7 @@ export const test = _baseTest.extend<TestFixtures, WorkerFixtures>({
       (browserType as any)._defaultLaunchOptions = undefined;
   }, { scope: 'worker', auto: true }],
 
-  _connectedBrowser: [async ({ playwright, browserName, channel, headless, connectOptions }, use) => {
+  _connectedBrowser: [async ({ playwright, browserName, channel, headless, connectOptions, launchOptions }, use) => {
     if (!connectOptions) {
       await use(undefined);
       return;
@@ -115,6 +117,7 @@ export const test = _baseTest.extend<TestFixtures, WorkerFixtures>({
       headers: {
         'x-playwright-browser': channel || browserName,
         'x-playwright-headless': headless ? '1' : '0',
+        'x-playwright-launch-options': JSON.stringify(launchOptions),
         ...connectOptions.headers,
       },
       timeout: connectOptions.timeout ?? 3 * 60 * 1000, // 3 minutes
@@ -249,7 +252,6 @@ export const test = _baseTest.extend<TestFixtures, WorkerFixtures>({
     const captureTrace = shouldCaptureTrace(traceMode, testInfo);
     const temporaryTraceFiles: string[] = [];
     const temporaryScreenshots: string[] = [];
-    const createdContexts = new Set<BrowserContext>();
     const testInfoImpl = testInfo as TestInfoImpl;
 
     const createInstrumentationListener = (context?: BrowserContext) => {
@@ -288,13 +290,14 @@ export const test = _baseTest.extend<TestFixtures, WorkerFixtures>({
           await tracing.startChunk({ title });
         }
       } else {
-        (tracing as any)[kTracingStarted] = false;
-        await tracing.stop();
+        if ((tracing as any)[kTracingStarted]) {
+          (tracing as any)[kTracingStarted] = false;
+          await tracing.stop();
+        }
       }
     };
 
     const onDidCreateBrowserContext = async (context: BrowserContext) => {
-      createdContexts.add(context);
       context.setDefaultTimeout(actionTimeout || 0);
       context.setDefaultNavigationTimeout(navigationTimeout || actionTimeout || 0);
       await startTracing(context.tracing);
@@ -461,8 +464,13 @@ export const test = _baseTest.extend<TestFixtures, WorkerFixtures>({
 
     await use(async options => {
       const hook = hookType(testInfo);
-      if (hook)
-        throw new Error(`"context" and "page" fixtures are not supported in ${hook}. Use browser.newContext() instead.`);
+      if (hook) {
+        throw new Error([
+          `"context" and "page" fixtures are not supported in "${hook}" since they are created on a per-test basis.`,
+          `If you would like to reuse a single page between tests, create context manually with browser.newContext(). See https://aka.ms/playwright/reuse-page for details.`,
+          `If you would like to configure your page before each test, do that in beforeEach hook instead.`,
+        ].join('\n'));
+      }
       const videoOptions: BrowserContextOptions = captureVideo ? {
         recordVideo: {
           dir: _artifactsDir(),
@@ -505,12 +513,35 @@ export const test = _baseTest.extend<TestFixtures, WorkerFixtures>({
       testInfo.errors.push({ message: prependToError });
   }, { scope: 'test',  _title: 'context' } as any],
 
-  context: async ({ _contextFactory }, use) => {
-    await use(await _contextFactory());
+  _contextReuseEnabled: !!process.env.PW_TEST_REUSE_CONTEXT,
+
+  _reuseContext: async ({ video, trace, _contextReuseEnabled }, use, testInfo) => {
+    const reuse = _contextReuseEnabled && !shouldCaptureVideo(normalizeVideoMode(video), testInfo) && !shouldCaptureTrace(normalizeTraceMode(trace), testInfo);
+    await use(reuse);
   },
 
-  page: async ({ context }, use) => {
-    await use(await context.newPage());
+  context: async ({ playwright, browser, _reuseContext, _contextFactory }, use, testInfo) => {
+    if (!_reuseContext) {
+      await use(await _contextFactory());
+      return;
+    }
+
+    const defaultContextOptions = (playwright.chromium as any)._defaultContextOptions as BrowserContextOptions;
+    const context = await (browser as any)._newContextForReuse(defaultContextOptions);
+    await use(context);
+  },
+
+  page: async ({ context, _reuseContext }, use) => {
+    if (!_reuseContext) {
+      await use(await context.newPage());
+      return;
+    }
+
+    // First time we are reusing the context, we should create the page.
+    let [page] = context.pages();
+    if (!page)
+      page = await context.newPage();
+    await use(page);
   },
 
   request: async ({ playwright, _combinedContextOptions }, use) => {

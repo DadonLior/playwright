@@ -222,6 +222,12 @@ test('should support toHaveText w/ array', async ({ runInlineTest }) => {
         const locator = page.locator('div');
         await expect(locator).toHaveText(['Text 1', /Text \\d/, 'Extra'], { timeout: 1000 });
       });
+
+      test('fail on repeating array matchers', async ({ page }) => {
+        await page.setContent('<div>KekFoo</div>');
+        const locator = page.locator('div');
+        await expect(locator).toContainText(['KekFoo', 'KekFoo', 'KekFoo'], { timeout: 1000 });
+      });
       `,
   }, { workers: 1 });
   const output = stripAnsi(result.output);
@@ -231,7 +237,7 @@ test('should support toHaveText w/ array', async ({ runInlineTest }) => {
   expect(output).toContain('waiting for selector "div"');
   expect(output).toContain('selector resolved to 2 elements');
   expect(result.passed).toBe(6);
-  expect(result.failed).toBe(2);
+  expect(result.failed).toBe(3);
   expect(result.exitCode).toBe(1);
 });
 
@@ -651,7 +657,7 @@ test('should print expected/received on Ctrl+C', async ({ runInlineTest }) => {
   }, { workers: 1 }, {}, { sendSIGINTAfter: 1 });
   expect(result.exitCode).toBe(130);
   expect(result.passed).toBe(0);
-  expect(result.skipped).toBe(1);
+  expect(result.interrupted).toBe(1);
   expect(stripAnsi(result.output)).toContain('Expected string: "Text 2"');
   expect(stripAnsi(result.output)).toContain('Received string: "Text content"');
 });

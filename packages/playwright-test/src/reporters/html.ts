@@ -79,9 +79,14 @@ export type TestCaseSummary = {
   outcome: 'skipped' | 'expected' | 'unexpected' | 'flaky';
   duration: number;
   ok: boolean;
+  results: TestResultSummary[];
 };
 
-export type TestCase = TestCaseSummary & {
+export type TestResultSummary = {
+  attachments: { name: string, contentType: string, path?: string }[];
+};
+
+export type TestCase = Omit<TestCaseSummary, 'results'> & {
   results: TestResult[];
 };
 
@@ -92,7 +97,6 @@ export type TestAttachment = {
   contentType: string;
 };
 
-
 export type TestResult = {
   retry: number;
   startTime: string;
@@ -100,7 +104,7 @@ export type TestResult = {
   steps: TestStep[];
   errors: string[];
   attachments: TestAttachment[];
-  status: 'passed' | 'failed' | 'timedOut' | 'skipped';
+  status: 'passed' | 'failed' | 'timedOut' | 'skipped' | 'interrupted';
 };
 
 export type TestStep = {
@@ -133,6 +137,7 @@ class HtmlReporter implements Reporter {
   private _options: HtmlReporterOptions;
   private _outputFolder!: string;
   private _open: string | undefined;
+  private _buildResult: { ok: boolean, singleTestId: string | undefined } | undefined;
 
   constructor(options: HtmlReporterOptions = {}) {
     this._options = options;
@@ -185,12 +190,14 @@ class HtmlReporter implements Reporter {
     });
     await removeFolders([this._outputFolder]);
     const builder = new HtmlBuilder(this._outputFolder);
-    const { ok, singleTestId } = await builder.build(this.config.metadata, reports);
+    this._buildResult = await builder.build(this.config.metadata, reports);
+  }
 
+  async onExit() {
     if (process.env.CI)
       return;
 
-
+    const { ok, singleTestId } = this._buildResult!;
     const shouldOpen = this._open === 'always' || (!ok && this._open === 'on-failure');
     if (shouldOpen) {
       await showHTMLReport(this._outputFolder, singleTestId);
@@ -399,6 +406,8 @@ class HtmlBuilder {
     path = [...path.slice(1)];
     this._testPath.set(test.testId, path);
 
+    const results = test.results.map(r => this._createTestResult(r));
+
     return {
       testCase: {
         testId: test.testId,
@@ -409,7 +418,7 @@ class HtmlBuilder {
         annotations: test.annotations,
         outcome: test.outcome,
         path,
-        results: test.results.map(r => this._createTestResult(r)),
+        results,
         ok: test.outcome === 'expected' || test.outcome === 'flaky',
       },
       testCaseSummary: {
@@ -422,6 +431,9 @@ class HtmlBuilder {
         outcome: test.outcome,
         path,
         ok: test.outcome === 'expected' || test.outcome === 'flaky',
+        results: results.map(result => {
+          return { attachments: result.attachments.map(a => ({ name: a.name, contentType: a.contentType, path: a.path })) };
+        }),
       },
     };
   }

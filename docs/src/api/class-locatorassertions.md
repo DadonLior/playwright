@@ -8,7 +8,7 @@ import { test, expect } from '@playwright/test';
 
 test('status becomes submitted', async ({ page }) => {
   // ...
-  await page.click('#submit-button');
+  await page.locator('#submit-button').click();
   await expect(page.locator('.status')).toHaveText('Submitted');
 });
 ```
@@ -22,7 +22,7 @@ public class TestLocator {
   @Test
   void statusBecomesSubmitted() {
     ...
-    page.click("#submit-button");
+    page.locator("#submit-button").click();
     assertThat(page.locator(".status")).hasText("Submitted");
   }
 }
@@ -33,7 +33,7 @@ from playwright.async_api import Page, expect
 
 async def test_status_becomes_submitted(page: Page) -> None:
     # ..
-    await page.click("#submit-button")
+    await page.locator("#submit-button").click()
     await expect(page.locator(".status")).to_have_text("Submitted")
 ```
 
@@ -42,7 +42,7 @@ from playwright.sync_api import Page, expect
 
 def test_status_becomes_submitted(page: Page) -> None:
     # ..
-    page.click("#submit-button")
+    page.locator("#submit-button").click()
     expect(page.locator(".status")).to_have_text("Submitted")
 ```
 
@@ -60,7 +60,7 @@ public class ExampleTests : PageTest
     public async Task StatusBecomesSubmitted()
     {
         // ..
-        await Page.ClickAsync("#submit-button");
+        await Page.Locator("#submit-button").ClickAsync();
         await Expect(Page.Locator(".status")).ToHaveTextAsync("Submitted");
     }
 }
@@ -883,15 +883,22 @@ Expected attribute value.
 * langs:
   - alias-java: hasClass
 
-Ensures the [Locator] points to an element with given CSS class.
+Ensures the [Locator] points to an element with given CSS classes. This needs to be a full match
+or using a relaxed regular expression.
+
+```html
+<div class='selected row' id='component'></div>
+```
 
 ```js
 const locator = page.locator('#component');
 await expect(locator).toHaveClass(/selected/);
+await expect(locator).toHaveClass('selected row');
 ```
 
 ```java
 assertThat(page.locator("#component")).hasClass(Pattern.compile("selected"));
+assertThat(page.locator("#component")).hasClass("selected row");
 ```
 
 ```python async
@@ -899,6 +906,7 @@ from playwright.async_api import expect
 
 locator = page.locator("#component")
 await expect(locator).to_have_class(re.compile(r"selected"))
+await expect(locator).to_have_class("selected row")
 ```
 
 ```python sync
@@ -906,11 +914,13 @@ from playwright.sync_api import expect
 
 locator = page.locator("#component")
 expect(locator).to_have_class(re.compile(r"selected"))
+expect(locator).to_have_class("selected row")
 ```
 
 ```csharp
 var locator = Page.Locator("#component");
 await Expect(locator).ToHaveClassAsync(new Regex("selected"));
+await Expect(locator).ToHaveClassAsync("selected row");
 ```
 
 Note that if array is passed as an expected value, entire lists of elements can be asserted:

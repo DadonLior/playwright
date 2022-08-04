@@ -2140,8 +2140,8 @@ export interface Page {
   }): Promise<void>;
 
   /**
-   * @param source
-   * @param target
+   * @param source A selector to search for an element to drag. If there are multiple elements satisfying the selector, the first will be used. See [working with selectors](https://playwright.dev/docs/selectors) for more details.
+   * @param target A selector to search for an element to drop onto. If there are multiple elements satisfying the selector, the first will be used. See [working with selectors](https://playwright.dev/docs/selectors) for more details.
    * @param options
    */
   dragAndDrop(source: string, target: string, options?: {
@@ -5185,8 +5185,8 @@ export interface Frame {
   }): Promise<void>;
 
   /**
-   * @param source
-   * @param target
+   * @param source A selector to search for an element to drag. If there are multiple elements satisfying the selector, the first will be used. See [working with selectors](https://playwright.dev/docs/selectors) for more details.
+   * @param target A selector to search for an element to drop onto. If there are multiple elements satisfying the selector, the first will be used. See [working with selectors](https://playwright.dev/docs/selectors) for more details.
    * @param options
    */
   dragAndDrop(source: string, target: string, options?: {
@@ -6377,7 +6377,7 @@ export interface BrowserContext {
    *     <button onclick="onClick()">Click me</button>
    *     <div></div>
    *   `);
-   *   await page.click('button');
+   *   await page.locator('button').click();
    * })();
    * ```
    *
@@ -6431,7 +6431,7 @@ export interface BrowserContext {
    *     <button onclick="onClick()">Click me</button>
    *     <div></div>
    *   `);
-   *   await page.click('button');
+   *   await page.locator('button').click();
    * })();
    * ```
    *
@@ -6487,7 +6487,7 @@ export interface BrowserContext {
    * ```js
    * const [newPage] = await Promise.all([
    *   context.waitForEvent('page'),
-   *   page.click('a[target=_blank]'),
+   *   page.locator('a[target=_blank]').click(),
    * ]);
    * console.log(await newPage.evaluate('location.href'));
    * ```
@@ -6614,7 +6614,7 @@ export interface BrowserContext {
    * ```js
    * const [newPage] = await Promise.all([
    *   context.waitForEvent('page'),
-   *   page.click('a[target=_blank]'),
+   *   page.locator('a[target=_blank]').click(),
    * ]);
    * console.log(await newPage.evaluate('location.href'));
    * ```
@@ -6781,7 +6781,7 @@ export interface BrowserContext {
    * ```js
    * const [newPage] = await Promise.all([
    *   context.waitForEvent('page'),
-   *   page.click('a[target=_blank]'),
+   *   page.locator('a[target=_blank]').click(),
    * ]);
    * console.log(await newPage.evaluate('location.href'));
    * ```
@@ -7003,7 +7003,7 @@ export interface BrowserContext {
    *     <button onclick="onClick()">Click me</button>
    *     <div></div>
    *   `);
-   *   await page.click('button');
+   *   await page.locator('button').click();
    * })();
    * ```
    *
@@ -7336,7 +7336,7 @@ export interface BrowserContext {
    * ```js
    * const [newPage] = await Promise.all([
    *   context.waitForEvent('page'),
-   *   page.click('a[target=_blank]'),
+   *   page.locator('a[target=_blank]').click(),
    * ]);
    * console.log(await newPage.evaluate('location.href'));
    * ```
@@ -8023,7 +8023,7 @@ export interface ElementHandle<T=Node> extends JSHandle<T> {
    * This method returns the bounding box of the element, or `null` if the element is not visible. The bounding box is
    * calculated relative to the main frame viewport - which is usually the same as the browser window.
    *
-   * Scrolling affects the returned bonding box, similarly to
+   * Scrolling affects the returned bounding box, similarly to
    * [Element.getBoundingClientRect](https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect). That
    * means `x` and/or `y` may be negative.
    *
@@ -9115,7 +9115,7 @@ export interface Locator {
    * This method returns the bounding box of the element, or `null` if the element is not visible. The bounding box is
    * calculated relative to the main frame viewport - which is usually the same as the browser window.
    *
-   * Scrolling affects the returned bonding box, similarly to
+   * Scrolling affects the returned bounding box, similarly to
    * [Element.getBoundingClientRect](https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect). That
    * means `x` and/or `y` may be negative.
    *
@@ -10379,7 +10379,9 @@ export interface BrowserType<Unused = {}> {
    */
   connectOverCDP(options: ConnectOverCDPOptions & { wsEndpoint?: string }): Promise<Browser>;
   /**
-   * This method attaches Playwright to an existing browser instance.
+   * This method attaches Playwright to an existing browser instance. When connecting to another browser launched via
+   * `BrowserType.launchServer` in Node.js, the major and minor version needs to match the client version (1.2.3 → is
+   * compatible with 1.2.x).
    * @param wsEndpoint A browser websocket endpoint to connect to.
    * @param options
    */
@@ -10391,7 +10393,9 @@ export interface BrowserType<Unused = {}> {
    * @deprecated
    */
   /**
-   * This method attaches Playwright to an existing browser instance.
+   * This method attaches Playwright to an existing browser instance. When connecting to another browser launched via
+   * `BrowserType.launchServer` in Node.js, the major and minor version needs to match the client version (1.2.3 → is
+   * compatible with 1.2.x).
    * @param wsEndpoint A browser websocket endpoint to connect to.
    * @param options
    */
@@ -10835,7 +10839,9 @@ export interface BrowserType<Unused = {}> {
   }): Promise<BrowserContext>;
 
   /**
-   * Returns the browser app instance.
+   * Returns the browser app instance. You can connect to it via
+   * [browserType.connect(wsEndpoint[, options])](https://playwright.dev/docs/api/class-browsertype#browser-type-connect),
+   * which requires the major/minor client/server version to match (1.2.3 → is compatible with 1.2.x).
    *
    * Launches browser server that client can connect to. An example of launching a browser executable and connecting to it
    * later:
@@ -11066,7 +11072,7 @@ export namespace errors {
  *   const context = await browser.newContext();
  *   const page = await context.newPage();
  *   try {
- *     await page.click("text=Foo", {
+ *     await page.locator("text=Foo").click({
  *       timeout: 100,
  *     })
  *   } catch (error) {
@@ -15510,7 +15516,7 @@ export interface Selectors {
    *   // Use the selector prefixed with its name.
    *   const button = page.locator('tag=button');
    *   // Combine it with other selector engines.
-   *   await page.click('tag=div >> text="Click me"');
+   *   await page.locator('tag=div >> text="Click me"').click();
    *   // Can use it in any methods supporting selectors.
    *   const buttonCount = await page.locator('tag=button').count();
    *
@@ -15627,7 +15633,7 @@ export interface Tracing {
    * await page.goto('https://playwright.dev');
    *
    * await context.tracing.startChunk();
-   * await page.click('text=Get Started');
+   * await page.locator('text=Get Started').click();
    * // Everything between startChunk and stopChunk will be recorded in the trace.
    * await context.tracing.stopChunk({ path: 'trace1.zip' });
    *

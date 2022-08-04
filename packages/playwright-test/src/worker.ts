@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
+import type { WriteStream } from 'tty';
 import * as util from 'util';
-import type { RunPayload, TeardownErrorsPayload, TestOutputPayload, WorkerInitParams } from './ipc';
+import type { RunPayload, TeardownErrorsPayload, TestOutputPayload, TtyParams, WorkerInitParams } from './ipc';
 import { startProfiling, stopProfiling } from './profiler';
 import { serializeError } from './util';
 import { WorkerRunner } from './workerRunner';
@@ -26,7 +27,7 @@ sendMessageToParent('ready');
 
 process.stdout.write = (chunk: string | Buffer) => {
   const outPayload: TestOutputPayload = {
-    testId: workerRunner?._currentTest?._test._id,
+    testId: workerRunner?._currentTest?._test.id,
     ...chunkToParams(chunk)
   };
   sendMessageToParent('stdOut', outPayload);
@@ -36,7 +37,7 @@ process.stdout.write = (chunk: string | Buffer) => {
 if (!process.env.PW_RUNNER_DEBUG) {
   process.stderr.write = (chunk: string | Buffer) => {
     const outPayload: TestOutputPayload = {
-      testId: workerRunner?._currentTest?._test._id,
+      testId: workerRunner?._currentTest?._test.id,
       ...chunkToParams(chunk)
     };
     sendMessageToParent('stdErr', outPayload);
@@ -68,7 +69,7 @@ process.on('message', async message => {
     initConsoleParameters(initParams);
     startProfiling();
     workerRunner = new WorkerRunner(initParams);
-    for (const event of ['testBegin', 'testEnd', 'stepBegin', 'stepEnd', 'done', 'teardownErrors'])
+    for (const event of ['testServer:testResolved', 'testBegin', 'testEnd', 'stepBegin', 'stepEnd', 'done', 'teardownErrors'])
       workerRunner.on(event, sendMessageToParent.bind(null, event));
     return;
   }
@@ -98,7 +99,9 @@ async function gracefullyCloseAndExit() {
       await stopProfiling(workerIndex);
   } catch (e) {
     try {
-      const payload: TeardownErrorsPayload = { fatalErrors: [serializeError(e)] };
+      const error = serializeError(e);
+      workerRunner.appendWorkerTeardownDiagnostics(error);
+      const payload: TeardownErrorsPayload = { fatalErrors: [error] };
       process.send!({ method: 'teardownErrors', params: payload });
     } catch {
     }
@@ -124,14 +127,21 @@ function chunkToParams(chunk: Buffer | string):  { text?: string, buffer?: strin
 
 function initConsoleParameters(initParams: WorkerInitParams) {
   // Make sure the output supports colors.
-  process.stdout.isTTY = true;
-  process.stderr.isTTY = true;
-  if (initParams.stdoutDimension.rows)
-    process.stdout.rows = initParams.stdoutDimension.rows;
-  if (initParams.stdoutDimension.columns)
-    process.stdout.columns = initParams.stdoutDimension.columns;
-  if (initParams.stderrDimension.rows)
-    process.stderr.rows = initParams.stderrDimension.rows;
-  if (initParams.stderrDimension.columns)
-    process.stderr.columns = initParams.stderrDimension.columns;
+  setTtyParams(process.stdout, initParams.stdoutParams);
+  setTtyParams(process.stderr, initParams.stderrParams);
+}
+
+function setTtyParams(stream: WriteStream, params: TtyParams) {
+  stream.isTTY = true;
+  if (params.rows)
+    stream.rows = params.rows;
+  if (params.columns)
+    stream.columns = params.columns;
+  stream.getColorDepth = () => params.colorDepth;
+  stream.hasColors = ((count = 16) => {
+    // count is optional and the first argument may actually be env.
+    if (typeof count !== 'number')
+      count = 16;
+    return count <= 2 ** params.colorDepth;
+  })as any;
 }

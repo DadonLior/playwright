@@ -127,6 +127,12 @@ export interface TestCase {
   }>;
 
   /**
+   * Unique test ID that is computed based on the test file name, test title and project name. Test ID can be used as a
+   * history ID.
+   */
+  id: string;
+
+  /**
    * Location in the source where the test is defined.
    */
   location: Location;
@@ -378,6 +384,13 @@ export interface Reporter {
    * @param error The error.
    */
   onError?(error: TestError): void;
+
+  /**
+   * Called before the test runner will terminate. Useful to perform work after all reporters have finished, for example open
+   * some UI. Fore regular reporting, you should use
+   * [reporter.onEnd(result)](https://playwright.dev/docs/api/class-reporter#reporter-on-end) instead.
+   */
+  onExit?(): Promise<void>;
 
   /**
    * Called when something has been written to the standard error in the worker process.

@@ -5,6 +5,25 @@ title: "Release notes"
 
 <!-- TOC -->
 
+## Version 1.24
+
+### 🐂 Debian 11 Bullseye Support
+
+Playwright now supports Debian 11 Bullseye on x86_64 for Chromium, Firefox and WebKit. Let us know
+if you encounter any issues!
+
+Linux support looks like this:
+
+|          | Ubuntu 18.04 | Ubuntu 20.04 | Ubuntu 22.04 | Debian 11
+| :--- | :---: | :---: | :---: | :---: | 
+| Chromium | ✅ | ✅ | ✅ | ✅ |
+| WebKit | ✅ | ✅ | ✅ | ✅ |
+| Firefox | ✅ | ✅ | ✅ | ✅ |
+
+### New introduction docs
+
+We rewrote our Getting Started docs to be more end-to-end testing focused. Check them out on [playwright.dev](https://playwright.dev/python/docs/intro).
+
 ## Version 1.23
 
 ### Network Replay
@@ -144,7 +163,7 @@ Note that the new methods [`method: Page.routeFromHAR`] and [`method: BrowserCon
 
   ```py
   # Click a button with accessible name "log in"
-  page.click("role=button[name='log in']")
+  page.locator("role=button[name='log in']").click()
   ```
 
   Read more in [our documentation](./selectors#role-selector).
@@ -172,12 +191,12 @@ Note that the new methods [`method: Page.routeFromHAR`] and [`method: BrowserCon
 
   ```python async
   # Click a button with accessible name "log in"
-  await page.click("role=button[name='log in']")
+  await page.locator("role=button[name='log in']").click()
   ```
 
   ```python sync
   # Click a button with accessible name "log in"
-  page.click("role=button[name='log in']")
+  page.locator("role=button[name='log in']").click()
   ```
 
   Read more in [our documentation](./selectors#role-selector).
@@ -297,7 +316,7 @@ from playwright.async_api import Page, expect
 
 async def test_status_becomes_submitted(page: Page) -> None:
     # ..
-    await page.click("#submit-button")
+    await page.locator("#submit-button").click()
     await expect(page.locator(".status")).to_have_text("Submitted")
 ```
 
@@ -306,7 +325,7 @@ from playwright.sync_api import Page, expect
 
 def test_status_becomes_submitted(page: Page) -> None:
     # ..
-    page.click("#submit-button")
+    page.locator("#submit-button").click()
     expect(page.locator(".status")).to_have_text("Submitted")
 ```
 
@@ -490,7 +509,7 @@ Pass `strict=true` into your action calls to opt in.
 
 ```py
 # This will throw if you have more than one button!
-page.click("button", strict=true)
+page.click("button", strict=True)
 ```
 
 #### 📍 New [**Locators API**](./api/class-locator)
@@ -513,8 +532,8 @@ Learn more in the [documentation](./api/class-locator).
 React and Vue selectors allow selecting elements by its component name and/or property values. The syntax is very similar to [attribute selectors](https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors) and supports all attribute selector operators.
 
 ```py
-page.click("_react=SubmitButton[enabled=true]");
-page.click("_vue=submit-button[enabled=true]");
+page.locator("_react=SubmitButton[enabled=true]").click()
+page.locator("_vue=submit-button[enabled=true]").click()
 ```
 
 Learn more in the [react selectors documentation](./selectors#react-selectors) and the [vue selectors documentation](./selectors#vue-selectors).
@@ -685,13 +704,13 @@ This version of Playwright was also tested against the following stable channels
 
 ## Version 1.9
 
-- [Playwright Inspector](./inspector.md) is a **new GUI tool** to author and debug your tests.
+- [Playwright Inspector](./debug.md) is a **new GUI tool** to author and debug your tests.
   - **Line-by-line debugging** of your Playwright scripts, with play, pause and step-through.
   - Author new scripts by **recording user actions**.
   - **Generate element selectors** for your script by hovering over elements.
   - Set the `PWDEBUG=1` environment variable to launch the Inspector
 
-- **Pause script execution** with [`method: Page.pause`] in headed mode. Pausing the page launches [Playwright Inspector](./inspector.md) for debugging.
+- **Pause script execution** with [`method: Page.pause`] in headed mode. Pausing the page launches [Playwright Inspector](./debug.md) for debugging.
 
 - **New has-text pseudo-class** for CSS selectors. `:has-text("example")` matches any element containing `"example"` somewhere inside, possibly in a child or a descendant element. See [more examples](./selectors.md#text-selector).
 

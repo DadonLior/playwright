@@ -7,7 +7,6 @@ Playwright Trace Viewer is a GUI tool that helps exploring recorded Playwright t
 
 <img width="1212" alt="Playwright Trace Viewer" src="https://user-images.githubusercontent.com/883973/120585896-6a1bca80-c3e7-11eb-951a-bd84002480f5.png"></img>
 
-<!-- TOC -->
 
 ## Recording a trace
 * langs: js
@@ -117,7 +116,7 @@ await using var browser = playwright.Chromium.LaunchAsync();
 await using var context = await browser.NewContextAsync();
 
 // Start tracing before creating / navigating a page.
-await context.Tracing.StartAsync(new TracingStartOptions
+await context.Tracing.StartAsync(new()
 {
   Screenshots = true,
   Snapshots = true,
@@ -128,7 +127,7 @@ var page = context.NewPageAsync();
 await page.GotoAsync("https://playwright.dev");
 
 // Stop tracing and export it into a zip archive.
-await context.Tracing.StopAsync(new TracingStopOptions
+await context.Tracing.StopAsync(new()
 {
   Path = "trace.zip"
 });
@@ -238,3 +237,5 @@ You can also pass the URL of your uploaded trace (e.g. inside your CI) from some
 ```txt
 https://trace.playwright.dev/?trace=https://demo.playwright.dev/reports/todomvc/data/cb0fa77ebd9487a5c899f3ae65a7ffdbac681182.zip
 ```
+
+

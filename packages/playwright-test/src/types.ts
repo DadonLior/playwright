@@ -16,6 +16,7 @@
 
 import type { Fixtures, TestError, Project } from '../types/test';
 import type { Location } from '../types/testReporter';
+import type { WorkerIsolation } from './ipc';
 import type { FullConfig as FullConfigPublic, FullProject as FullProjectPublic } from './types';
 export * from '../types/test';
 export type { Location } from '../types/testReporter';
@@ -44,6 +45,7 @@ export interface FullConfigInternal extends FullConfigPublic {
   _globalOutputDir: string;
   _configDir: string;
   _testGroupsCount: number;
+  _workerIsolation: WorkerIsolation;
   /**
    * If populated, this should also be the first/only entry in _webServers. Legacy singleton `webServer` as well as those provided via an array in the user-facing playwright.config.{ts,js} will be in `_webServers`. The legacy field (`webServer`) field additionally stores the backwards-compatible singleton `webServer` since it had been showing up in globalSetup to the user.
    */
@@ -59,9 +61,12 @@ export interface FullConfigInternal extends FullConfigPublic {
  * increasing the surface area of the public API type called FullProject.
  */
 export interface FullProjectInternal extends FullProjectPublic {
+  _id: string;
   _fullConfig: FullConfigInternal;
   _fullyParallel: boolean;
   _expect: Project['expect'];
   _screenshotsDir: string;
   _respectGitIgnore: boolean;
+  _projectSetup?: string;
+  _projectTeardown?: string;
 }

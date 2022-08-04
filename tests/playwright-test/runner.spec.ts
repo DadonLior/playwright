@@ -31,23 +31,6 @@ test('it should not allow multiple tests with the same name per suite', async ({
   expect(result.output).toContain(`  - tests${path.sep}example.spec.js:7`);
 });
 
-test('it should enforce unique test names based on the describe block name', async ({ runInlineTest }) => {
-  const result = await runInlineTest({
-    'tests/example.spec.js': `
-      const { test } = pwt;
-      test.describe('hello', () => { test('my world', () => {}) });
-      test.describe('hello my', () => { test('world', () => {}) });
-      test('hello my world', () => {});
-    `
-  });
-  expect(result.exitCode).toBe(1);
-  expect(result.output).toContain('duplicate test titles are not allowed');
-  expect(result.output).toContain(`- title: hello my world`);
-  expect(result.output).toContain(`  - tests${path.sep}example.spec.js:6`);
-  expect(result.output).toContain(`  - tests${path.sep}example.spec.js:7`);
-  expect(result.output).toContain(`  - tests${path.sep}example.spec.js:8`);
-});
-
 test('it should not allow multiple tests with the same name in multiple files', async ({ runInlineTest }) => {
   const result = await runInlineTest({
     'tests/example1.spec.js': `
@@ -129,7 +112,8 @@ test('sigint should stop workers', async ({ runInlineTest }) => {
   expect(result.exitCode).toBe(130);
   expect(result.passed).toBe(0);
   expect(result.failed).toBe(0);
-  expect(result.skipped).toBe(4);
+  expect(result.skipped).toBe(2);
+  expect(result.interrupted).toBe(2);
   expect(result.output).toContain('%%SEND-SIGINT%%1');
   expect(result.output).toContain('%%SEND-SIGINT%%2');
   expect(result.output).not.toContain('%%skipped1');
@@ -194,7 +178,7 @@ test('worker interrupt should report errors', async ({ runInlineTest }) => {
   expect(result.exitCode).toBe(130);
   expect(result.passed).toBe(0);
   expect(result.failed).toBe(0);
-  expect(result.skipped).toBe(1);
+  expect(result.interrupted).toBe(1);
   expect(result.output).toContain('%%SEND-SIGINT%%');
   expect(result.output).toContain('Error: INTERRUPT');
 });

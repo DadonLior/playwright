@@ -5,6 +5,130 @@ title: "Release notes"
 
 <!-- TOC -->
 
+## Version 1.24
+
+### 🌍 Multiple Web Servers in `playwright.config.ts`
+
+Launch multiple web servers, databases, or other processes by passing an array of configurations:
+
+```ts
+// playwright.config.ts
+import type { PlaywrightTestConfig } from '@playwright/test';
+const config: PlaywrightTestConfig = {
+  webServer: [
+    {
+      command: 'npm run start',
+      port: 3000,
+      timeout: 120 * 1000,
+      reuseExistingServer: !process.env.CI,
+    },
+    {
+      command: 'npm run backend',
+      port: 3333,
+      timeout: 120 * 1000,
+      reuseExistingServer: !process.env.CI,
+    }
+  ],
+  use: {
+    baseURL: 'http://localhost:3000/',
+  },
+};
+export default config;
+```
+
+### 🐂 Debian 11 Bullseye Support
+
+Playwright now supports Debian 11 Bullseye on x86_64 for Chromium, Firefox and WebKit. Let us know
+if you encounter any issues!
+
+Linux support looks like this:
+
+|          | Ubuntu 18.04 | Ubuntu 20.04 | Ubuntu 22.04 | Debian 11
+| :--- | :---: | :---: | :---: | :---: | 
+| Chromium | ✅ | ✅ | ✅ | ✅ |
+| WebKit | ✅ | ✅ | ✅ | ✅ |
+| Firefox | ✅ | ✅ | ✅ | ✅ |
+
+### 🕵️ Anonymous Describe
+
+It is now possible to call [`method: Test.describe#2`] to create suites without a title. This is useful for giving a group of tests a common option with [`method: Test.use`].
+
+```ts
+test.describe(() => {
+  test.use({ colorScheme: 'dark' });
+
+  test('one', async ({ page }) => {
+    // ...
+  });
+
+  test('two', async ({ page }) => {
+    // ...
+  });
+});
+```
+
+### 🧩 Component Tests Update 
+
+Playwright 1.24 Component Tests introduce `beforeMount` and `afterMount` hooks.
+Use these to configure your app for tests.
+
+For example, this could be used to setup App router in Vue.js:
+
+```js
+// src/component.spec.ts
+import { test } from '@playwright/experimental-ct-vue';
+import { Component } from './mycomponent';
+
+test('should work', async ({ mount }) => {
+  const component = await mount(Component, {
+    hooksConfig: {
+      /* anything to configure your app */
+    }
+  });
+});
+```
+
+```js
+// playwright/index.ts
+import { router } from '../router';
+import { beforeMount } from '@playwright/experimental-ct-vue/hooks';
+
+beforeMount(async ({ app, hooksConfig }) => {
+  app.use(router);
+});
+```
+
+A similar configuration in Next.js would look like this:
+
+```js
+// src/component.spec.jsx
+import { test } from '@playwright/experimental-ct-react';
+import { Component } from './mycomponent';
+
+test('should work', async ({ mount }) => {
+  const component = await mount(<Component></Component>, {
+    // Pass mock value from test into `beforeMount`.
+    hooksConfig: {
+      router: {
+        query: { page: 1, per_page: 10 },
+        asPath: '/posts'
+      }
+    }
+  });
+});
+```
+
+```js
+// playwright/index.js
+import router from 'next/router';
+import { beforeMount } from '@playwright/experimental-ct-react/hooks';
+
+beforeMount(async ({ hooksConfig }) => {
+  // Before mount, redefine useRouter to return mock value from test.
+  router.useRouter = () => hooksConfig.router;
+});
+```
+
 ## Version 1.23
 
 <div className="embed-youtube">
@@ -110,7 +234,7 @@ Read more about [component testing with Playwright](./test-components).
     }
   });
   ```
-* Playwright now runs on Ubuntu 22 amd64 and Ubuntu 22 arm64. We also publish new docker image `mcr.microsoft.com/playwright:v1.24.0-jammy`.
+* Playwright now runs on Ubuntu 22 amd64 and Ubuntu 22 arm64. We also publish new docker image `mcr.microsoft.com/playwright:v1.25.0-jammy`.
 
 ### ⚠️ Breaking Changes ⚠️
 
@@ -165,7 +289,7 @@ WebServer is now considered "ready" if request to the specified port has any of 
 
   ```js
   // Click a button with accessible name "log in"
-  await page.click('role=button[name="log in"]')
+  await page.locator('role=button[name="log in"]').click()
   ```
 
   Read more in [our documentation](./selectors#role-selector).
@@ -207,7 +331,7 @@ WebServer is now considered "ready" if request to the specified port has any of 
 
   ```js
   // Click a button with accessible name "log in"
-  await page.click('role=button[name="log in"]')
+  await page.locator('role=button[name="log in"]').click()
   ```
 
   Read more in [our documentation](./selectors#role-selector).
@@ -807,8 +931,8 @@ Learn more in the [documentation](./api/class-locator).
 React and Vue selectors allow selecting elements by its component name and/or property values. The syntax is very similar to [attribute selectors](https://developer.mozilla.org/en-US/docs/Web/CSS/Attribute_selectors) and supports all attribute selector operators.
 
 ```js
-await page.click('_react=SubmitButton[enabled=true]');
-await page.click('_vue=submit-button[enabled=true]');
+await page.locator('_react=SubmitButton[enabled=true]').click();
+await page.locator('_vue=submit-button[enabled=true]').click();
 ```
 
 Learn more in the [react selectors documentation](./selectors#react-selectors) and the [vue selectors documentation](./selectors#vue-selectors).
@@ -1115,13 +1239,13 @@ This version of Playwright was also tested against the following stable channels
 
 ## Version 1.9
 
-- [Playwright Inspector](./inspector.md) is a **new GUI tool** to author and debug your tests.
+- [Playwright Inspector](./debug.md) is a **new GUI tool** to author and debug your tests.
   - **Line-by-line debugging** of your Playwright scripts, with play, pause and step-through.
   - Author new scripts by **recording user actions**.
   - **Generate element selectors** for your script by hovering over elements.
   - Set the `PWDEBUG=1` environment variable to launch the Inspector
 
-- **Pause script execution** with [`method: Page.pause`] in headed mode. Pausing the page launches [Playwright Inspector](./inspector.md) for debugging.
+- **Pause script execution** with [`method: Page.pause`] in headed mode. Pausing the page launches [Playwright Inspector](./debug.md) for debugging.
 
 - **New has-text pseudo-class** for CSS selectors. `:has-text("example")` matches any element containing `"example"` somewhere inside, possibly in a child or a descendant element. See [more examples](./selectors.md#text-selector).
 

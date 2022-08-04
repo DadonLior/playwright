@@ -226,9 +226,9 @@ module.exports = async config => {
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto(baseURL);
-  await page.fill('input[name="user"]', 'user');
-  await page.fill('input[name="password"]', 'password');
-  await page.click('text=Sign in');
+  await page.locator('input[name="user"]').fill('user');
+  await page.locator('input[name="password"]').fill('password');
+  await page.locator('text=Sign in').click();
   await page.context().storageState({ path: storageState });
   await browser.close();
 };
@@ -243,9 +243,9 @@ async function globalSetup(config: FullConfig) {
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto(baseURL!);
-  await page.fill('input[name="user"]', 'user');
-  await page.fill('input[name="password"]', 'password');
-  await page.click('text=Sign in');
+  await page.locator('input[name="user"]').fill('user');
+  await page.locator('input[name="password"]').fill('password');
+  await page.locator('text=Sign in').click();
   await page.context().storageState({ path: storageState as string });
   await browser.close();
 }
@@ -359,6 +359,8 @@ test('test', async ({ page }) => {
 });
 ```
 
+You can also have project-specific setup with [`property: TestProject.projectSetup`]. It will only be executed if at least one test from a specific project should be run, while global setup is always executed at the start of the test session.
+
 ### Capturing trace of failures during global setup
 
 In some instances, it may be useful to capture a trace of failures encountered during the global setup. In order to do this, you must [start tracing](./api/class-tracing.md#tracing-start) in your setup, and you must ensure that you [stop tracing](./api/class-tracing.md#tracing-stop) if an error occurs before that error is thrown. This can be achieved by wrapping your setup in a `try...catch` block.  Here is an example that expands the global setup example to capture a trace.
@@ -375,9 +377,9 @@ module.exports = async config => {
   try {
     await context.tracing.start({ screenshots: true, snapshots: true });
     await page.goto(baseURL);
-    await page.fill('input[name="user"]', 'user');
-    await page.fill('input[name="password"]', 'password');
-    await page.click('text=Sign in');
+    await page.locator('input[name="user"]').fill('user');
+    await page.locator('input[name="password"]').fill('password');
+    await page.locator('text=Sign in').click();
     await context.storageState({ path: storageState });
     await context.tracing.stop({
       path: './test-results/setup-trace.zip',
@@ -405,9 +407,9 @@ async function globalSetup(config: FullConfig) {
   try {
     await context.tracing.start({ screenshots: true, snapshots: true });
     await page.goto(baseURL!);
-    await page.fill('input[name="user"]', 'user');
-    await page.fill('input[name="password"]', 'password');
-    await page.click('text=Sign in');
+    await page.locator('input[name="user"]').fill('user');
+    await page.locator('input[name="password"]').fill('password');
+    await page.locator('text=Sign in').click();
     await context.storageState({ path: storageState as string });
     await context.tracing.stop({
       path: './test-results/setup-trace.zip',

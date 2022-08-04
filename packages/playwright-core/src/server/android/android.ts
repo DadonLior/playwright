@@ -250,7 +250,7 @@ export class AndroidDevice extends SdkObject {
     const commandLine = `_ --disable-fre --no-default-browser-check --no-first-run --remote-debugging-socket-name=${socketName}`;
     debug('pw:android')('Starting', pkg, commandLine);
     await this._backend.runCommand(`shell:echo "${commandLine}" > /data/local/tmp/chrome-command-line`);
-    await this._backend.runCommand(`shell:am start -n ${pkg}/com.google.android.apps.chrome.Main about:blank`);
+    await this._backend.runCommand(`shell:am start -a android.intent.action.VIEW -d about:blank ${pkg}`);
     return await this._connectToBrowser(socketName, options);
   }
 
@@ -290,7 +290,8 @@ export class AndroidDevice extends SdkObject {
       browserProcess: new ClankBrowserProcess(androidBrowser),
       proxy: options.proxy,
       protocolLogger: helper.debugProtocolLogger(),
-      browserLogsCollector: new RecentLogsCollector()
+      browserLogsCollector: new RecentLogsCollector(),
+      originalLaunchOptions: {},
     };
     validateBrowserContextOptions(options, browserOptions);
 

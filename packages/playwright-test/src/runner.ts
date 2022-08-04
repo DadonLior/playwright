@@ -45,6 +45,7 @@ import type { TestRunnerPlugin } from './plugins';
 import { setRunnerToAddPluginsTo } from './plugins';
 import { webServerPluginsForConfig } from './plugins/webServerPlugin';
 import { MultiMap } from 'playwright-core/lib/utils/multimap';
+import { createGuid } from 'playwright-core/lib/utils';
 
 const removeFolderAsync = promisify(rimraf);
 const readDirAsync = promisify(fs.readdir);
@@ -190,6 +191,7 @@ export class Runner {
     await new Promise<void>(resolve => process.stdout.write('', () => resolve()));
     await new Promise<void>(resolve => process.stderr.write('', () => resolve()));
 
+    await this._reporter.onExit?.();
     return fullResult;
   }
 
@@ -206,6 +208,37 @@ export class Runner {
       });
     }
     return report;
+  }
+
+  async runTestServer(): Promise<void> {
+    const config = this._loader.fullConfig();
+    this._reporter = await this._createReporter(false);
+    const rootSuite = new Suite('', 'root');
+    this._reporter.onBegin?.(config, rootSuite);
+    const result: FullResult = { status: 'passed' };
+    const globalTearDown = await this._performGlobalAndProjectSetup(config, rootSuite, config.projects, result);
+    if (result.status !== 'passed')
+      return;
+
+    while (true) {
+      const nextTest = await (this._reporter as any)._nextTest!();
+      if (!nextTest)
+        break;
+      const { projectId, file, line } = nextTest;
+      const testGroup: TestGroup = {
+        workerHash: createGuid(), // Create new worker for each test.
+        requireFile: file,
+        repeatEachIndex: 0,
+        projectId,
+        tests: [],
+        testServerTestLine: line,
+      };
+      const dispatcher = new Dispatcher(this._loader, [testGroup], this._reporter);
+      await dispatcher.run();
+    }
+
+    await globalTearDown?.();
+    await this._reporter.onEnd?.(result);
   }
 
   private async _run(list: boolean, testFileReFilters: FilePatternFilter[], projectNames?: string[]): Promise<FullResult> {
@@ -265,7 +298,7 @@ export class Runner {
     const fatalErrors: TestError[] = [];
 
     // 1. Add all tests.
-    const preprocessRoot = new Suite('');
+    const preprocessRoot = new Suite('', 'root');
     for (const file of allTestFiles) {
       const fileSuite = await this._loader.loadTestFile(file, 'runner');
       if (fileSuite._loadError)
@@ -297,12 +330,11 @@ export class Runner {
     for (const fileSuite of preprocessRoot.suites)
       fileSuites.set(fileSuite._requireFile, fileSuite);
 
-    const outputDirs = new Set<string>();
-    const rootSuite = new Suite('');
+    const rootSuite = new Suite('', 'root');
     for (const [project, files] of filesByProject) {
       const grepMatcher = createTitleMatcher(project.grep);
       const grepInvertMatcher = project.grepInvert ? createTitleMatcher(project.grepInvert) : null;
-      const projectSuite = new Suite(project.name);
+      const projectSuite = new Suite(project.name, 'project');
       projectSuite._projectConfig = project;
       if (project._fullyParallel)
         projectSuite._parallelMode = 'parallel';
@@ -322,7 +354,6 @@ export class Runner {
             projectSuite._addSuite(builtSuite);
         }
       }
-      outputDirs.add(project.outputDir);
     }
 
     // 7. Fail when no tests.
@@ -380,6 +411,7 @@ export class Runner {
 
     // 12. Remove output directores.
     try {
+      const outputDirs = new Set([...filesByProject.keys()].map(project => project.outputDir));
       await Promise.all(Array.from(outputDirs).map(outputDir => removeFolderAsync(outputDir).catch(async error => {
         if ((error as any).code === 'EBUSY') {
           // We failed to remove folder, might be due to the whole folder being mounted inside a container:
@@ -398,7 +430,7 @@ export class Runner {
 
     // 13. Run Global setup.
     const result: FullResult = { status: 'passed' };
-    const globalTearDown = await this._performGlobalSetup(config, rootSuite, result);
+    const globalTearDown = await this._performGlobalAndProjectSetup(config, rootSuite, [...filesByProject.keys()], result);
     if (result.status !== 'passed')
       return result;
 
@@ -432,22 +464,43 @@ export class Runner {
     return result;
   }
 
-  private async _performGlobalSetup(config: FullConfigInternal, rootSuite: Suite, result: FullResult): Promise<(() => Promise<void>) | undefined> {
-    let globalSetupResult: any;
+  private async _performGlobalAndProjectSetup(config: FullConfigInternal, rootSuite: Suite, projects: FullProjectInternal[], result: FullResult): Promise<(() => Promise<void>) | undefined> {
+    type SetupData = {
+      setupFile?: string | null;
+      teardownFile?: string | null;
+      setupResult?: any;
+    };
+
+    const setups: SetupData[] = [];
+    setups.push({
+      setupFile: config.globalSetup,
+      teardownFile: config.globalTeardown,
+      setupResult: undefined,
+    });
+    for (const project of projects) {
+      setups.push({
+        setupFile: project._projectSetup,
+        teardownFile: project._projectTeardown,
+        setupResult: undefined,
+      });
+    }
+
     const pluginsThatWereSetUp: TestRunnerPlugin[] = [];
     const sigintWatcher = new SigIntWatcher();
 
     const tearDown = async () => {
-      // Reverse to setup.
-      await this._runAndReportError(async () => {
-        if (globalSetupResult && typeof globalSetupResult === 'function')
-          await globalSetupResult(this._loader.fullConfig());
-      }, result);
+      setups.reverse();
+      for (const setup of setups) {
+        await this._runAndReportError(async () => {
+          if (setup.setupResult && typeof setup.setupResult === 'function')
+            await setup.setupResult(this._loader.fullConfig());
+        }, result);
 
-      await this._runAndReportError(async () => {
-        if (globalSetupResult && config.globalTeardown)
-          await (await this._loader.loadGlobalHook(config.globalTeardown, 'globalTeardown'))(this._loader.fullConfig());
-      }, result);
+        await this._runAndReportError(async () => {
+          if (setup.setupResult && setup.teardownFile)
+            await (await this._loader.loadGlobalHook(setup.teardownFile))(this._loader.fullConfig());
+        }, result);
+      }
 
       for (const plugin of pluginsThatWereSetUp.reverse()) {
         await this._runAndReportError(async () => {
@@ -472,13 +525,20 @@ export class Runner {
         pluginsThatWereSetUp.push(plugin);
       }
 
-      // The do global setup.
-      if (!sigintWatcher.hadSignal() && config.globalSetup) {
-        const hook = await this._loader.loadGlobalHook(config.globalSetup, 'globalSetup');
-        await Promise.race([
-          Promise.resolve().then(() => hook(this._loader.fullConfig())).then((r: any) => globalSetupResult = r || '<noop>'),
-          sigintWatcher.promise(),
-        ]);
+      // Then do global setup and project setups.
+      for (const setup of setups) {
+        if (!sigintWatcher.hadSignal()) {
+          if (setup.setupFile) {
+            const hook = await this._loader.loadGlobalHook(setup.setupFile);
+            await Promise.race([
+              Promise.resolve().then(() => hook(this._loader.fullConfig())).then((r: any) => setup.setupResult = r || '<noop>'),
+              sigintWatcher.promise(),
+            ]);
+          } else {
+            // Make sure we run the teardown.
+            setup.setupResult = '<noop>';
+          }
+        }
       }
     }, result);
 
@@ -647,10 +707,16 @@ function createTestGroups(rootSuite: Suite, workers: number): TestGroup[] {
   const groups = new Map<string, Map<string, {
     // Tests that must be run in order are in the same group.
     general: TestGroup,
-    // Tests that may be run independently each has a dedicated group with a single test.
-    parallel: TestGroup[],
-    // Tests that are marked as parallel but have beforeAll/afterAll hooks should be grouped
-    // as much as possible. We split them into equally sized groups, one per worker.
+
+    // There are 3 kinds of parallel tests:
+    // - Tests belonging to parallel suites, without beforeAll/afterAll hooks.
+    //   These can be run independently, they are put into their own group, key === test.
+    // - Tests belonging to parallel suites, with beforeAll/afterAll hooks.
+    //   These should share the worker as much as possible, put into single parallelWithHooks group.
+    //   We'll divide them into equally-sized groups later.
+    // - Tests belonging to serial suites inside parallel suites.
+    //   These should run as a serial group, each group is independent, key === serial suite.
+    parallel: Map<Suite | TestCase, TestGroup>,
     parallelWithHooks: TestGroup,
   }>>();
 
@@ -659,7 +725,7 @@ function createTestGroups(rootSuite: Suite, workers: number): TestGroup[] {
       workerHash: test._workerHash,
       requireFile: test._requireFile,
       repeatEachIndex: test.repeatEachIndex,
-      projectIndex: test._projectIndex,
+      projectId: test._projectId,
       tests: [],
     };
   };
@@ -675,29 +741,34 @@ function createTestGroups(rootSuite: Suite, workers: number): TestGroup[] {
       if (!withRequireFile) {
         withRequireFile = {
           general: createGroup(test),
-          parallel: [],
+          parallel: new Map(),
           parallelWithHooks: createGroup(test),
         };
         withWorkerHash.set(test._requireFile, withRequireFile);
       }
 
+      // Note that a parallel suite cannot be inside a serial suite. This is enforced in TestType.
       let insideParallel = false;
-      let insideSerial = false;
+      let outerMostSerialSuite: Suite | undefined;
       let hasAllHooks = false;
       for (let parent: Suite | undefined = test.parent; parent; parent = parent.parent) {
-        insideSerial = insideSerial || parent._parallelMode === 'serial';
-        // Serial cancels out any enclosing parallel.
-        insideParallel = insideParallel || (!insideSerial && parent._parallelMode === 'parallel');
+        if (parent._parallelMode === 'serial')
+          outerMostSerialSuite = parent;
+        insideParallel = insideParallel || parent._parallelMode === 'parallel';
         hasAllHooks = hasAllHooks || parent._hooks.some(hook => hook.type === 'beforeAll' || hook.type === 'afterAll');
       }
 
       if (insideParallel) {
-        if (hasAllHooks) {
+        if (hasAllHooks && !outerMostSerialSuite) {
           withRequireFile.parallelWithHooks.tests.push(test);
         } else {
-          const group = createGroup(test);
+          const key = outerMostSerialSuite || test;
+          let group = withRequireFile.parallel.get(key);
+          if (!group) {
+            group = createGroup(test);
+            withRequireFile.parallel.set(key, group);
+          }
           group.tests.push(test);
-          withRequireFile.parallel.push(group);
         }
       } else {
         withRequireFile.general.tests.push(test);
@@ -708,10 +779,14 @@ function createTestGroups(rootSuite: Suite, workers: number): TestGroup[] {
   const result: TestGroup[] = [];
   for (const withWorkerHash of groups.values()) {
     for (const withRequireFile of withWorkerHash.values()) {
+      // Tests without parallel mode should run serially as a single group.
       if (withRequireFile.general.tests.length)
         result.push(withRequireFile.general);
-      result.push(...withRequireFile.parallel);
 
+      // Parallel test groups without beforeAll/afterAll can be run independently.
+      result.push(...withRequireFile.parallel.values());
+
+      // Tests with beforeAll/afterAll should try to share workers as much as possible.
       const parallelWithHooksGroupSize = Math.ceil(withRequireFile.parallelWithHooks.tests.length / workers);
       let lastGroup: TestGroup | undefined;
       for (const test of withRequireFile.parallelWithHooks.tests) {
@@ -773,7 +848,7 @@ function createDuplicateTitlesError(config: FullConfigInternal, rootSuite: Suite
   for (const fileSuite of rootSuite.suites) {
     const testsByFullTitle = new MultiMap<string, TestCase>();
     for (const test of fileSuite.allTests()) {
-      const fullTitle = test.titlePath().slice(2).join(' ');
+      const fullTitle = test.titlePath().slice(2).join('\x1e');
       testsByFullTitle.set(fullTitle, test);
     }
     for (const fullTitle of testsByFullTitle.keys()) {

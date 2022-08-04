@@ -3,7 +3,9 @@ id: selectors
 title: "Selectors"
 ---
 
-Selectors are strings that are used to create [Locator]s. Locators are used to perform actions on the elements by means of methods such as [`method: Locator.click`], [`method: Locator.fill`] and alike.
+Selectors are strings that are used to create [Locator]s. Locators are used to perform actions on the elements by means of methods such as [`method: Locator.click`], [`method: Locator.fill`] and alike. For debugging selectors, see [here](./debug-selectors).
+
+Writing good selectors is part art, part science so be sure to checkout the [Best Practices](#best-practices) section.
 
 <!-- TOC -->
 
@@ -491,7 +493,7 @@ Locators support an option to only select elements that have some text somewhere
   page.locator("button", has_text="Click me").click()
   ```
   ```csharp
-  await page.Locator("button", new PageLocatorOptions { HasText = "Click me" }).ClickAsync();
+  await page.Locator("button", new() { HasText = "Click me" }).ClickAsync();
   ```
 
 You can also pass a regular expression.
@@ -513,7 +515,7 @@ Locators support an option to only select elements that have a descendant matchi
   page.locator("article", has=page.locator("button.subscribe"))
   ```
   ```csharp
-  page.Locator("article", new PageLocatorOptions { Has = page.Locator("button.subscribe") })
+  page.Locator("article", new() { Has = page.Locator("button.subscribe") })
   ```
 
 Note that inner locator is matched starting from the outer one, not from the document root.
@@ -572,7 +574,7 @@ You can add filtering to any locator by passing `:scope` selector to [`method: L
   ```csharp
   var locator = page.Locator(".row");
   // ... later on ...
-  await locator.Locator(":scope", new LocatorLocatorOptions { HasText = "Hello" }).ClickAsync();
+  await locator.Locator(":scope", new() { HasText = "Hello" }).ClickAsync();
   ```
 
 ## Selecting elements matching one of the conditions
@@ -795,27 +797,27 @@ For example, consider the following DOM structure: `<label for="password">Passwo
 
 ```js
 // Fill the input by targeting the label.
-await page.fill('text=Password', 'secret');
+await page.locator('text=Password').fill('secret');
 ```
 
 ```java
 // Fill the input by targeting the label.
-page.fill("text=Password", "secret");
+page.locator("text=Password").fill("secret");
 ```
 
 ```python async
 # Fill the input by targeting the label.
-await page.fill('text=Password', 'secret')
+await page.locator('text=Password').fill('secret')
 ```
 
 ```python sync
 # Fill the input by targeting the label.
-page.fill('text=Password', 'secret')
+page.locator('text=Password').fill('secret')
 ```
 
 ```csharp
 // Fill the input by targeting the label.
-await page.FillAsync("text=Password", "secret");
+await page.Locator("text=Password").FillAsync("secret");
 ```
 
 However, other methods will target the label itself, for example `textContent` will return the text content of the label, not the input field.
@@ -1321,7 +1323,7 @@ await page.Locator("data-test-id=directions").ClickAsync();
 ### Avoid selectors tied to implementation
 
 [xpath] and [css] can be tied to the DOM structure or implementation. These selectors can break when
-the DOM structure changes.
+the DOM structure changes. Similarly, [`method: Locator.nth`], [`method: Locator.first`], and [`method: Locator.last`] are tied to implementation and the structure of the DOM, and will target the incorrect element if the DOM changes.
 
 ```js
 // avoid long css or xpath chains

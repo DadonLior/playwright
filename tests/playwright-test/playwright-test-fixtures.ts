@@ -37,6 +37,7 @@ export type RunResult = {
   failed: number,
   flaky: number,
   skipped: number,
+  interrupted: number,
   report: JSONReport,
   results: any[],
 };
@@ -156,7 +157,7 @@ async function runPlaywrightTest(childProcess: CommonFixtures['childProcess'], b
   testProcess.onOutput = () => {
     if (options.sendSIGINTAfter && !didSendSigint && countTimes(testProcess.output, '%%SEND-SIGINT%%') >= options.sendSIGINTAfter) {
       didSendSigint = true;
-      process.kill(testProcess.process.pid, 'SIGINT');
+      process.kill(testProcess.process.pid!, 'SIGINT');
     }
   };
   const { exitCode } = await testProcess.exited;
@@ -176,6 +177,7 @@ async function runPlaywrightTest(childProcess: CommonFixtures['childProcess'], b
   const failed = summary(/(\d+) failed/g);
   const flaky = summary(/(\d+) flaky/g);
   const skipped = summary(/(\d+) skipped/g);
+  const interrupted = summary(/(\d+) interrupted/g);
   let report;
   try {
     report = JSON.parse(fs.readFileSync(reportFile).toString());
@@ -205,6 +207,7 @@ async function runPlaywrightTest(childProcess: CommonFixtures['childProcess'], b
     failed,
     flaky,
     skipped,
+    interrupted,
     report,
     results,
   };
@@ -282,10 +285,6 @@ export { expect } from './stable-test-runner';
 const asciiRegex = new RegExp('[\\u001B\\u009B][[\\]()#;?]*(?:(?:(?:[a-zA-Z\\d]*(?:;[-a-zA-Z\\d\\/#&.:=?%@~_]*)*)?\\u0007)|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-ntqry=><~]))', 'g');
 export function stripAnsi(str: string): string {
   return str.replace(asciiRegex, '');
-}
-
-export function trimLineEnds(text: string): string {
-  return text.split('\n').map(line => line.trimEnd()).join('\n');
 }
 
 export function countTimes(s: string, sub: string): number {

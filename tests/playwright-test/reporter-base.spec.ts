@@ -261,8 +261,9 @@ test('should print errors with inconsistent message/stack', async ({ runInlineTe
   });
   expect(result.exitCode).toBe(1);
   expect(result.failed).toBe(1);
-  expect(result.output).toContain('hi!Error: Hello');
-  expect(result.output).toContain('at myTest');
+  const output = stripAnsi(result.output);
+  expect(output).toContain('hi!Error: Hello');
+  expect(output).toContain('function myTest');
 });
 
 test('should print "no tests found" error', async ({ runInlineTest }) => {
@@ -288,4 +289,32 @@ test('should not crash on undefined body with manual attachments', async ({ runI
   expect(stripAnsi(result.output)).not.toContain('Error in reporter');
   expect(result.failed).toBe(1);
   expect(result.exitCode).toBe(1);
+});
+
+test('should report fatal errors at the end', async ({ runInlineTest }) => {
+  const result = await runInlineTest({
+    'a.spec.ts': `
+      const test = pwt.test.extend({
+        fixture: [async ({ }, use) => {
+          await use();
+          throw new Error('oh my!');
+        }, { scope: 'worker' }],
+      });
+      test('good', async ({ fixture }) => {
+      });
+    `,
+    'b.spec.ts': `
+      const test = pwt.test.extend({
+        fixture: [async ({ }, use) => {
+          await use();
+          throw new Error('oh my!');
+        }, { scope: 'worker' }],
+      });
+      test('good', async ({ fixture }) => {
+      });
+    `,
+  }, { reporter: 'list' });
+  expect(result.exitCode).toBe(1);
+  expect(result.passed).toBe(2);
+  expect(stripAnsi(result.output)).toContain('2 fatal errors');
 });

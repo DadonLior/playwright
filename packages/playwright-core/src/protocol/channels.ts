@@ -905,6 +905,7 @@ export interface BrowserChannel extends BrowserEventTarget, Channel {
   close(params?: BrowserCloseParams, metadata?: Metadata): Promise<BrowserCloseResult>;
   killForTests(params?: BrowserKillForTestsParams, metadata?: Metadata): Promise<BrowserKillForTestsResult>;
   newContext(params: BrowserNewContextParams, metadata?: Metadata): Promise<BrowserNewContextResult>;
+  newContextForReuse(params: BrowserNewContextForReuseParams, metadata?: Metadata): Promise<BrowserNewContextForReuseResult>;
   newBrowserCDPSession(params?: BrowserNewBrowserCDPSessionParams, metadata?: Metadata): Promise<BrowserNewBrowserCDPSessionResult>;
   startTracing(params: BrowserStartTracingParams, metadata?: Metadata): Promise<BrowserStartTracingResult>;
   stopTracing(params?: BrowserStopTracingParams, metadata?: Metadata): Promise<BrowserStopTracingResult>;
@@ -1033,6 +1034,123 @@ export type BrowserNewContextOptions = {
 export type BrowserNewContextResult = {
   context: BrowserContextChannel,
 };
+export type BrowserNewContextForReuseParams = {
+  noDefaultViewport?: boolean,
+  viewport?: {
+    width: number,
+    height: number,
+  },
+  screen?: {
+    width: number,
+    height: number,
+  },
+  ignoreHTTPSErrors?: boolean,
+  javaScriptEnabled?: boolean,
+  bypassCSP?: boolean,
+  userAgent?: string,
+  locale?: string,
+  timezoneId?: string,
+  geolocation?: {
+    longitude: number,
+    latitude: number,
+    accuracy?: number,
+  },
+  permissions?: string[],
+  extraHTTPHeaders?: NameValue[],
+  offline?: boolean,
+  httpCredentials?: {
+    username: string,
+    password: string,
+  },
+  deviceScaleFactor?: number,
+  isMobile?: boolean,
+  hasTouch?: boolean,
+  colorScheme?: 'dark' | 'light' | 'no-preference',
+  reducedMotion?: 'reduce' | 'no-preference',
+  forcedColors?: 'active' | 'none',
+  acceptDownloads?: boolean,
+  baseURL?: string,
+  recordVideo?: {
+    dir: string,
+    size?: {
+      width: number,
+      height: number,
+    },
+  },
+  recordHar?: RecordHarOptions,
+  strictSelectors?: boolean,
+  serviceWorkers?: 'allow' | 'block',
+  proxy?: {
+    server: string,
+    bypass?: string,
+    username?: string,
+    password?: string,
+  },
+  storageState?: {
+    cookies?: SetNetworkCookie[],
+    origins?: OriginStorage[],
+  },
+};
+export type BrowserNewContextForReuseOptions = {
+  noDefaultViewport?: boolean,
+  viewport?: {
+    width: number,
+    height: number,
+  },
+  screen?: {
+    width: number,
+    height: number,
+  },
+  ignoreHTTPSErrors?: boolean,
+  javaScriptEnabled?: boolean,
+  bypassCSP?: boolean,
+  userAgent?: string,
+  locale?: string,
+  timezoneId?: string,
+  geolocation?: {
+    longitude: number,
+    latitude: number,
+    accuracy?: number,
+  },
+  permissions?: string[],
+  extraHTTPHeaders?: NameValue[],
+  offline?: boolean,
+  httpCredentials?: {
+    username: string,
+    password: string,
+  },
+  deviceScaleFactor?: number,
+  isMobile?: boolean,
+  hasTouch?: boolean,
+  colorScheme?: 'dark' | 'light' | 'no-preference',
+  reducedMotion?: 'reduce' | 'no-preference',
+  forcedColors?: 'active' | 'none',
+  acceptDownloads?: boolean,
+  baseURL?: string,
+  recordVideo?: {
+    dir: string,
+    size?: {
+      width: number,
+      height: number,
+    },
+  },
+  recordHar?: RecordHarOptions,
+  strictSelectors?: boolean,
+  serviceWorkers?: 'allow' | 'block',
+  proxy?: {
+    server: string,
+    bypass?: string,
+    username?: string,
+    password?: string,
+  },
+  storageState?: {
+    cookies?: SetNetworkCookie[],
+    origins?: OriginStorage[],
+  },
+};
+export type BrowserNewContextForReuseResult = {
+  context: BrowserContextChannel,
+};
 export type BrowserNewBrowserCDPSessionParams = {};
 export type BrowserNewBrowserCDPSessionOptions = {};
 export type BrowserNewBrowserCDPSessionResult = {
@@ -1089,7 +1207,7 @@ export interface EventTargetEvents {
 // ----------- BrowserContext -----------
 export type BrowserContextInitializer = {
   isChromium: boolean,
-  APIRequestContext: APIRequestContextChannel,
+  requestContext: APIRequestContextChannel,
   tracing: TracingChannel,
 };
 export interface BrowserContextEventTarget {
@@ -1109,13 +1227,11 @@ export interface BrowserContextChannel extends BrowserContextEventTarget, EventT
   _type_BrowserContext: boolean;
   addCookies(params: BrowserContextAddCookiesParams, metadata?: Metadata): Promise<BrowserContextAddCookiesResult>;
   addInitScript(params: BrowserContextAddInitScriptParams, metadata?: Metadata): Promise<BrowserContextAddInitScriptResult>;
-  removeInitScripts(params?: BrowserContextRemoveInitScriptsParams, metadata?: Metadata): Promise<BrowserContextRemoveInitScriptsResult>;
   clearCookies(params?: BrowserContextClearCookiesParams, metadata?: Metadata): Promise<BrowserContextClearCookiesResult>;
   clearPermissions(params?: BrowserContextClearPermissionsParams, metadata?: Metadata): Promise<BrowserContextClearPermissionsResult>;
   close(params?: BrowserContextCloseParams, metadata?: Metadata): Promise<BrowserContextCloseResult>;
   cookies(params: BrowserContextCookiesParams, metadata?: Metadata): Promise<BrowserContextCookiesResult>;
   exposeBinding(params: BrowserContextExposeBindingParams, metadata?: Metadata): Promise<BrowserContextExposeBindingResult>;
-  removeExposedBindings(params?: BrowserContextRemoveExposedBindingsParams, metadata?: Metadata): Promise<BrowserContextRemoveExposedBindingsResult>;
   grantPermissions(params: BrowserContextGrantPermissionsParams, metadata?: Metadata): Promise<BrowserContextGrantPermissionsResult>;
   newPage(params?: BrowserContextNewPageParams, metadata?: Metadata): Promise<BrowserContextNewPageResult>;
   setDefaultNavigationTimeoutNoReply(params: BrowserContextSetDefaultNavigationTimeoutNoReplyParams, metadata?: Metadata): Promise<BrowserContextSetDefaultNavigationTimeoutNoReplyResult>;
@@ -1187,9 +1303,6 @@ export type BrowserContextAddInitScriptOptions = {
 
 };
 export type BrowserContextAddInitScriptResult = void;
-export type BrowserContextRemoveInitScriptsParams = {};
-export type BrowserContextRemoveInitScriptsOptions = {};
-export type BrowserContextRemoveInitScriptsResult = void;
 export type BrowserContextClearCookiesParams = {};
 export type BrowserContextClearCookiesOptions = {};
 export type BrowserContextClearCookiesResult = void;
@@ -1216,9 +1329,6 @@ export type BrowserContextExposeBindingOptions = {
   needsHandle?: boolean,
 };
 export type BrowserContextExposeBindingResult = void;
-export type BrowserContextRemoveExposedBindingsParams = {};
-export type BrowserContextRemoveExposedBindingsOptions = {};
-export type BrowserContextRemoveExposedBindingsResult = void;
 export type BrowserContextGrantPermissionsParams = {
   permissions: string[],
   origin?: string,
@@ -1411,11 +1521,9 @@ export interface PageChannel extends PageEventTarget, EventTargetChannel {
   setDefaultTimeoutNoReply(params: PageSetDefaultTimeoutNoReplyParams, metadata?: Metadata): Promise<PageSetDefaultTimeoutNoReplyResult>;
   setFileChooserInterceptedNoReply(params: PageSetFileChooserInterceptedNoReplyParams, metadata?: Metadata): Promise<PageSetFileChooserInterceptedNoReplyResult>;
   addInitScript(params: PageAddInitScriptParams, metadata?: Metadata): Promise<PageAddInitScriptResult>;
-  removeInitScripts(params?: PageRemoveInitScriptsParams, metadata?: Metadata): Promise<PageRemoveInitScriptsResult>;
   close(params: PageCloseParams, metadata?: Metadata): Promise<PageCloseResult>;
   emulateMedia(params: PageEmulateMediaParams, metadata?: Metadata): Promise<PageEmulateMediaResult>;
   exposeBinding(params: PageExposeBindingParams, metadata?: Metadata): Promise<PageExposeBindingResult>;
-  removeExposedBindings(params?: PageRemoveExposedBindingsParams, metadata?: Metadata): Promise<PageRemoveExposedBindingsResult>;
   goBack(params: PageGoBackParams, metadata?: Metadata): Promise<PageGoBackResult>;
   goForward(params: PageGoForwardParams, metadata?: Metadata): Promise<PageGoForwardResult>;
   reload(params: PageReloadParams, metadata?: Metadata): Promise<PageReloadResult>;
@@ -1513,9 +1621,6 @@ export type PageAddInitScriptOptions = {
 
 };
 export type PageAddInitScriptResult = void;
-export type PageRemoveInitScriptsParams = {};
-export type PageRemoveInitScriptsOptions = {};
-export type PageRemoveInitScriptsResult = void;
 export type PageCloseParams = {
   runBeforeUnload?: boolean,
 };
@@ -1544,9 +1649,6 @@ export type PageExposeBindingOptions = {
   needsHandle?: boolean,
 };
 export type PageExposeBindingResult = void;
-export type PageRemoveExposedBindingsParams = {};
-export type PageRemoveExposedBindingsOptions = {};
-export type PageRemoveExposedBindingsResult = void;
 export type PageGoBackParams = {
   timeout?: number,
   waitUntil?: LifecycleEvent,

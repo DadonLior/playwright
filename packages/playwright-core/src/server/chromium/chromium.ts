@@ -114,6 +114,7 @@ export class Chromium extends BrowserType {
       // users in normal (launch/launchServer) mode since otherwise connectOverCDP
       // does not work at all with proxies on Windows.
       proxy: { server: 'per-context' },
+      originalLaunchOptions: {},
     };
     validateBrowserContextOptions(persistent, browserOptions);
     progress.throwIfAborted();
@@ -337,7 +338,8 @@ const DEFAULT_ARGS = [
   '--disable-dev-shm-usage',
   '--disable-extensions',
   // AvoidUnnecessaryBeforeUnloadCheckSync - https://github.com/microsoft/playwright/issues/14047
-  '--disable-features=ImprovedCookieControls,LazyFrameLoading,GlobalMediaControls,DestroyProfileOnBrowserClose,MediaRouter,DialMediaRouteProvider,AcceptCHFrame,AutoExpandDetailsElement,CertificateTransparencyComponentUpdater,AvoidUnnecessaryBeforeUnloadCheckSync',
+  // Translate - https://github.com/microsoft/playwright/issues/16126
+  '--disable-features=ImprovedCookieControls,LazyFrameLoading,GlobalMediaControls,DestroyProfileOnBrowserClose,MediaRouter,DialMediaRouteProvider,AcceptCHFrame,AutoExpandDetailsElement,CertificateTransparencyComponentUpdater,AvoidUnnecessaryBeforeUnloadCheckSync,Translate',
   '--allow-pre-commit-input',
   '--disable-hang-monitor',
   '--disable-ipc-flooding-protection',

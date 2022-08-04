@@ -487,7 +487,7 @@ interface TestConfig {
    * ```
    *
    */
-  webServer?: TestConfigWebServer;
+  webServer?: TestConfigWebServer | TestConfigWebServer[];
   /**
    * Configuration for the `expect` assertion library. Learn more about [various timeouts](https://playwright.dev/docs/test-timeouts).
    *
@@ -1294,7 +1294,7 @@ export interface FullConfig<TestArgs = {}, WorkerArgs = {}> {
   webServer: TestConfigWebServer | null;
 }
 
-export type TestStatus = 'passed' | 'failed' | 'timedOut' | 'skipped';
+export type TestStatus = 'passed' | 'failed' | 'timedOut' | 'skipped' | 'interrupted';
 
 /**
  * `WorkerInfo` contains information about the worker that is running tests. It is available to
@@ -1506,7 +1506,7 @@ export interface TestInfo {
    * ```
    *
    */
-  expectedStatus: "passed"|"failed"|"timedOut"|"skipped";
+  expectedStatus: "passed"|"failed"|"timedOut"|"skipped"|"interrupted";
 
   /**
    * Marks the currently running test as "should fail". Playwright Test runs this test and ensures that it is actually
@@ -1714,7 +1714,7 @@ export interface TestInfo {
    * ```
    *
    */
-  status?: "passed"|"failed"|"timedOut"|"skipped";
+  status?: "passed"|"failed"|"timedOut"|"skipped"|"interrupted";
 
   /**
    * Output written to `process.stderr` or `console.error` during the test execution.
@@ -1898,6 +1898,24 @@ export interface TestType<TestArgs extends KeyValue, WorkerArgs extends KeyValue
    * this callback will belong to the group, and will not be run.
    */
   skip: SuiteFunction;
+    /**
+   * Declares a test group similarly to
+   * [test.describe(title, callback)](https://playwright.dev/docs/api/class-test#test-describe-1). Tests in this group are
+   * maked as "fixme" and will not be executed.
+   *
+   * ```js
+   * test.describe.fixme('broken tests', () => {
+   *   test('example', async ({ page }) => {
+   *     // This test will not run
+   *   });
+   * });
+   * ```
+   *
+   * @param title Group title.
+   * @param callback A callback that is run immediately when calling [test.describe.fixme(title, callback)](https://playwright.dev/docs/api/class-test#test-describe-fixme). Any tests added
+   * in this callback will belong to the group, and will not be run.
+   */
+  fixme: SuiteFunction;
     /**
    * Declares a group of tests that should always be run serially. If one of the tests fails, all subsequent tests are
    * skipped. All tests in a group are retried together.
@@ -2494,7 +2512,7 @@ export interface TestType<TestArgs extends KeyValue, WorkerArgs extends KeyValue
    * @param title Step name.
    * @param body Step body.
    */
-  step(title: string, body: () => Promise<any>): Promise<any>;
+  step<T>(title: string, body: () => Promise<T>): Promise<T>;
   /**
    * `expect` function can be used to create test assertions. Read
    * [expect library documentation](https://jestjs.io/docs/expect) for more details.
@@ -2991,9 +3009,9 @@ export interface PlaywrightTestArgs {
    *
    * test('basic test', async ({ page }) => {
    *   await page.goto('/signin');
-   *   await page.fill('#username', 'User');
-   *   await page.fill('#password', 'pwd');
-   *   await page.click('text=Sign in');
+   *   await page.locator('#username').fill('User');
+   *   await page.locator('#password').fill('pwd');
+   *   await page.locator('text=Sign in').click();
    *   // ...
    * });
    * ```
@@ -3029,6 +3047,23 @@ import type { Suite } from '@playwright/test/types/testReporter';
 
 type AsymmetricMatcher = Record<string, any>;
 
+type AsymmetricMatchers = {
+  any(sample: unknown): AsymmetricMatcher;
+  anything(): AsymmetricMatcher;
+  arrayContaining(sample: Array<unknown>): AsymmetricMatcher;
+  closeTo(sample: number, precision?: number): AsymmetricMatcher;
+  objectContaining(sample: Record<string, unknown>): AsymmetricMatcher;
+  stringContaining(sample: string): AsymmetricMatcher;
+  stringMatching(sample: string | RegExp): AsymmetricMatcher;
+}
+
+type Inverse<Matchers> = {
+  /**
+   * Inverse next matcher. If you know how to test something, `.not` lets you test its opposite.
+   */
+  not: Matchers;
+};
+
 type IfAny<T, Y, N> = 0 extends (1 & T) ? Y : N;
 type ExtraMatchers<T, Type, Matchers> = T extends Type ? Matchers : IfAny<T, Matchers, {}>;
 
@@ -3054,6 +3089,16 @@ type MakeMatchers<R, T> = BaseMatchers<R, T> & {
   ExtraMatchers<T, Locator, LocatorAssertions> &
   ExtraMatchers<T, APIResponse, APIResponseAssertions>;
 
+type BaseExpect = {
+  // Removed following methods because they rely on a test-runner integration from Jest which we don't support:
+  // assertions(numberOfAssertions: number): void;
+  // extractExpectedAssertionsErrors(): ExpectedAssertionsErrors;
+  // hasAssertions(): void;
+  extend(matchers: any): void;
+  getState(): expectType.MatcherState;
+  setState(state: Partial<expectType.MatcherState>): void;
+}
+
 export type Expect = {
   <T = unknown>(actual: T, messageOrOptions?: string | { message?: string }): MakeMatchers<void, T>;
   soft: <T = unknown>(actual: T, messageOrOptions?: string | { message?: string }) => MakeMatchers<void, T>;
@@ -3063,23 +3108,9 @@ export type Expect = {
      */
      not: BaseMatchers<Promise<void>, T>;
   };
-
-  extend(arg0: any): void;
-  getState(): expectType.MatcherState;
-  setState(state: Partial<expectType.MatcherState>): void;
-  any(expectedObject: any): AsymmetricMatcher;
-  anything(): AsymmetricMatcher;
-  arrayContaining(sample: Array<unknown>): AsymmetricMatcher;
-  objectContaining(sample: Record<string, unknown>): AsymmetricMatcher;
-  stringContaining(expected: string): AsymmetricMatcher;
-  stringMatching(expected: string | RegExp): AsymmetricMatcher;
-  /**
-   * Removed following methods because they rely on a test-runner integration from Jest which we don't support:
-   * - assertions()
-   * - extractExpectedAssertionsErrors()
-   * – hasAssertions()
-   */
-};
+} & BaseExpect &
+  AsymmetricMatchers &
+  Inverse<Omit<AsymmetricMatchers, 'any' | 'anything'>>;
 
 type Awaited<T> = T extends PromiseLike<infer U> ? U : T;
 
@@ -3155,7 +3186,7 @@ interface APIResponseAssertions {
  *
  * test('status becomes submitted', async ({ page }) => {
  *   // ...
- *   await page.click('#submit-button');
+ *   await page.locator('#submit-button').click();
  *   await expect(page.locator('.status')).toHaveText('Submitted');
  * });
  * ```
@@ -3372,11 +3403,17 @@ interface LocatorAssertions {
   }): Promise<void>;
 
   /**
-   * Ensures the [Locator] points to an element with given CSS class.
+   * Ensures the [Locator] points to an element with given CSS classes. This needs to be a full match or using a relaxed
+   * regular expression.
+   *
+   * ```html
+   * <div class='selected row' id='component'></div>
+   * ```
    *
    * ```js
    * const locator = page.locator('#component');
    * await expect(locator).toHaveClass(/selected/);
+   * await expect(locator).toHaveClass('selected row');
    * ```
    *
    * Note that if array is passed as an expected value, entire lists of elements can be asserted:
@@ -3717,7 +3754,7 @@ interface LocatorAssertions {
  *
  * test('navigates to login', async ({ page }) => {
  *   // ...
- *   await page.click('#login');
+ *   await page.locator('#login').click();
  *   await expect(page).toHaveURL(/.*\/login/);
  * });
  * ```
@@ -3968,7 +4005,7 @@ interface PageAssertions {
    * await expect(page).toHaveURL(/.*checkout/);
    * ```
    *
-   * @param urlOrRegExp Expected substring or RegExp.
+   * @param urlOrRegExp Expected URL string or RegExp.
    * @param options
    */
   toHaveURL(urlOrRegExp: string|RegExp, options?: {
@@ -4276,6 +4313,49 @@ interface TestProject {
    * Project name is visible in the report and during test execution.
    */
   name?: string;
+
+  /**
+   * Path to the project-specifc setup file. This file will be required and run before all the tests from this project. It
+   * must export a single function that takes a [`TestConfig`] argument.
+   *
+   * Project setup is similar to
+   * [testConfig.globalSetup](https://playwright.dev/docs/api/class-testconfig#test-config-global-setup), but it is only
+   * executed if at least one test from this particular project should be run. Learn more about
+   * [global setup and teardown](https://playwright.dev/docs/test-advanced#global-setup-and-teardown).
+   *
+   * ```js
+   * // playwright.config.ts
+   * import { type PlaywrightTestConfig } from '@playwright/test';
+   *
+   * const config: PlaywrightTestConfig = {
+   *   projects: [
+   *     {
+   *       name: 'Admin Portal',
+   *       projectSetup: './setup-admin',
+   *     },
+   *     {
+   *       name: 'Customer Portal',
+   *       projectSetup: './setup-customer',
+   *     },
+   *   ],
+   * };
+   * export default config;
+   * ```
+   *
+   */
+  projectSetup?: string;
+
+  /**
+   * Path to the project-specifc teardown file. This file will be required and run after all the tests from this project. It
+   * must export a single function. See also
+   * [testProject.projectSetup](https://playwright.dev/docs/api/class-testproject#test-project-project-setup).
+   *
+   * Project teardown is similar to
+   * [testConfig.globalTeardown](https://playwright.dev/docs/api/class-testconfig#test-config-global-teardown), but it is
+   * only executed if at least one test from this particular project did run. Learn more about
+   * [global setup and teardown](https://playwright.dev/docs/test-advanced#global-setup-and-teardown).
+   */
+  projectTeardown?: string;
 
   /**
    * The base directory, relative to the config file, for snapshot files created with `toMatchSnapshot`. Defaults to

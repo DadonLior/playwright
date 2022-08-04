@@ -17,8 +17,6 @@
 
 import { test as it, expect } from './pageTest';
 
-it.skip(({ isAndroid }) => isAndroid);
-
 async function giveItAChanceToFill(page) {
   for (let i = 0; i < 5; i++)
     await page.evaluate(() => new Promise(f => requestAnimationFrame(() => requestAnimationFrame(f))));
@@ -341,4 +339,13 @@ it('should not throw when fill causes navigation', async ({ page, server }) => {
     page.waitForNavigation(),
   ]);
   expect(page.url()).toContain('empty.html');
+});
+
+it('fill back to back', async ({ page }) => {
+  it.info().annotations.push({ type: 'issue', description: 'https://github.com/microsoft/playwright/issues/15925' });
+  await page.setContent(`<input id="one"></input><input id="two"></input>`);
+  await page.fill('id=one', 'first value');
+  await page.fill('id=two', 'second value');
+  await expect(page.locator('id=one')).toHaveValue('first value');
+  await expect(page.locator('id=two')).toHaveValue('second value');
 });

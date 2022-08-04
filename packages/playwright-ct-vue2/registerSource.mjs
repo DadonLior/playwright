@@ -134,9 +134,26 @@ function render(component, h) {
   return wrapper;
 }
 
-window.playwrightMount = (component, rootElement) => {
-  const mounted = new Vue({
+window.playwrightMount = async (component, rootElement, hooksConfig) => {
+  for (const hook of /** @type {any} */(window).__pw_hooks_before_mount || [])
+    await hook({ hooksConfig });
+
+  const instance = new Vue({
     render: h => render(component, h),
   }).$mount();
-  rootElement.appendChild(mounted.$el);
+  rootElement.appendChild(instance.$el);
+  /** @type {any} */ (instance.$el)[instanceKey] = instance;
+
+  for (const hook of /** @type {any} */(window).__pw_hooks_after_mount || [])
+    await hook({ hooksConfig, instance });
 };
+
+window.playwrightUnmount = async element => {
+  const component = /** @type {any} */(element)[instanceKey];
+  if (!component)
+    throw new Error('Component was not mounted');
+  component.$destroy();
+  element.remove();
+};
+
+const instanceKey = Symbol('instanceKey');

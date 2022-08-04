@@ -546,6 +546,66 @@ scheme.BrowserNewContextParams = tObject({
 scheme.BrowserNewContextResult = tObject({
   context: tChannel(['BrowserContext']),
 });
+scheme.BrowserNewContextForReuseParams = tObject({
+  noDefaultViewport: tOptional(tBoolean),
+  viewport: tOptional(tObject({
+    width: tNumber,
+    height: tNumber,
+  })),
+  screen: tOptional(tObject({
+    width: tNumber,
+    height: tNumber,
+  })),
+  ignoreHTTPSErrors: tOptional(tBoolean),
+  javaScriptEnabled: tOptional(tBoolean),
+  bypassCSP: tOptional(tBoolean),
+  userAgent: tOptional(tString),
+  locale: tOptional(tString),
+  timezoneId: tOptional(tString),
+  geolocation: tOptional(tObject({
+    longitude: tNumber,
+    latitude: tNumber,
+    accuracy: tOptional(tNumber),
+  })),
+  permissions: tOptional(tArray(tString)),
+  extraHTTPHeaders: tOptional(tArray(tType('NameValue'))),
+  offline: tOptional(tBoolean),
+  httpCredentials: tOptional(tObject({
+    username: tString,
+    password: tString,
+  })),
+  deviceScaleFactor: tOptional(tNumber),
+  isMobile: tOptional(tBoolean),
+  hasTouch: tOptional(tBoolean),
+  colorScheme: tOptional(tEnum(['dark', 'light', 'no-preference'])),
+  reducedMotion: tOptional(tEnum(['reduce', 'no-preference'])),
+  forcedColors: tOptional(tEnum(['active', 'none'])),
+  acceptDownloads: tOptional(tBoolean),
+  baseURL: tOptional(tString),
+  recordVideo: tOptional(tObject({
+    dir: tString,
+    size: tOptional(tObject({
+      width: tNumber,
+      height: tNumber,
+    })),
+  })),
+  recordHar: tOptional(tType('RecordHarOptions')),
+  strictSelectors: tOptional(tBoolean),
+  serviceWorkers: tOptional(tEnum(['allow', 'block'])),
+  proxy: tOptional(tObject({
+    server: tString,
+    bypass: tOptional(tString),
+    username: tOptional(tString),
+    password: tOptional(tString),
+  })),
+  storageState: tOptional(tObject({
+    cookies: tOptional(tArray(tType('SetNetworkCookie'))),
+    origins: tOptional(tArray(tType('OriginStorage'))),
+  })),
+});
+scheme.BrowserNewContextForReuseResult = tObject({
+  context: tChannel(['BrowserContext']),
+});
 scheme.BrowserNewBrowserCDPSessionParams = tOptional(tObject({}));
 scheme.BrowserNewBrowserCDPSessionResult = tObject({
   session: tChannel(['CDPSession']),
@@ -584,7 +644,7 @@ scheme.ElectronApplicationWaitForEventInfoResult = tType('EventTargetWaitForEven
 scheme.AndroidDeviceWaitForEventInfoResult = tType('EventTargetWaitForEventInfoResult');
 scheme.BrowserContextInitializer = tObject({
   isChromium: tBoolean,
-  APIRequestContext: tChannel(['APIRequestContext']),
+  requestContext: tChannel(['APIRequestContext']),
   tracing: tChannel(['Tracing']),
 });
 scheme.BrowserContextBindingCallEvent = tObject({
@@ -635,8 +695,6 @@ scheme.BrowserContextAddInitScriptParams = tObject({
   source: tString,
 });
 scheme.BrowserContextAddInitScriptResult = tOptional(tObject({}));
-scheme.BrowserContextRemoveInitScriptsParams = tOptional(tObject({}));
-scheme.BrowserContextRemoveInitScriptsResult = tOptional(tObject({}));
 scheme.BrowserContextClearCookiesParams = tOptional(tObject({}));
 scheme.BrowserContextClearCookiesResult = tOptional(tObject({}));
 scheme.BrowserContextClearPermissionsParams = tOptional(tObject({}));
@@ -654,8 +712,6 @@ scheme.BrowserContextExposeBindingParams = tObject({
   needsHandle: tOptional(tBoolean),
 });
 scheme.BrowserContextExposeBindingResult = tOptional(tObject({}));
-scheme.BrowserContextRemoveExposedBindingsParams = tOptional(tObject({}));
-scheme.BrowserContextRemoveExposedBindingsResult = tOptional(tObject({}));
 scheme.BrowserContextGrantPermissionsParams = tObject({
   permissions: tArray(tString),
   origin: tOptional(tString),
@@ -811,8 +867,6 @@ scheme.PageAddInitScriptParams = tObject({
   source: tString,
 });
 scheme.PageAddInitScriptResult = tOptional(tObject({}));
-scheme.PageRemoveInitScriptsParams = tOptional(tObject({}));
-scheme.PageRemoveInitScriptsResult = tOptional(tObject({}));
 scheme.PageCloseParams = tObject({
   runBeforeUnload: tOptional(tBoolean),
 });
@@ -829,8 +883,6 @@ scheme.PageExposeBindingParams = tObject({
   needsHandle: tOptional(tBoolean),
 });
 scheme.PageExposeBindingResult = tOptional(tObject({}));
-scheme.PageRemoveExposedBindingsParams = tOptional(tObject({}));
-scheme.PageRemoveExposedBindingsResult = tOptional(tObject({}));
 scheme.PageGoBackParams = tObject({
   timeout: tOptional(tNumber),
   waitUntil: tOptional(tType('LifecycleEvent')),

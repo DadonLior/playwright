@@ -25,9 +25,8 @@ import { zones } from '../utils/zones';
 import type { ClientInstrumentation } from './clientInstrumentation';
 import type { Connection } from './connection';
 import type { Logger } from './types';
-import { JoiningEventEmitter } from './joiningEventEmitter';
 
-export abstract class ChannelOwner<T extends channels.Channel = channels.Channel> extends JoiningEventEmitter {
+export abstract class ChannelOwner<T extends channels.Channel = channels.Channel> extends EventEmitter {
   readonly _connection: Connection;
   private _parent: ChannelOwner | undefined;
   private _objects = new Map<string, ChannelOwner>();
@@ -56,6 +55,12 @@ export abstract class ChannelOwner<T extends channels.Channel = channels.Channel
 
     this._channel = this._createChannel(new EventEmitter());
     this._initializer = initializer;
+  }
+
+  _adopt(child: ChannelOwner<any>) {
+    child._parent!._objects.delete(child._guid);
+    this._objects.set(child._guid, child);
+    child._parent = this;
   }
 
   _dispose() {

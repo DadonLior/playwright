@@ -1,213 +1,96 @@
 ---
 id: getting-started-vscode
-title: "Getting started (VS Code)"
+title: "Getting started - VS Code"
 ---
 
-Playwright Test was created specifically to accommodate the needs of end-to-end testing. It does everything you would expect from a regular test runner, and more. Here you will learn how to:
+Playwright Test was created specifically to accommodate the needs of end-to-end testing. Playwright supports all modern rendering engines including Chromium, WebKit, and Firefox. Test on Windows, Linux, and macOS, locally or on CI, headless or headed with native mobile emulation of Google Chrome for Android and Mobile Safari. 
 
-- [Install Playwright using the VS Code Extension](#installation)
-- [Generate tests with Codegen right from VS Code](#generating-tests-with-codegen)
-- [Write assertions, use test fixtures and test hooks](#writing-assertions)
-- [Run tests in VS Code](#running-tests)
-- [Create breakpoints and debug tests right in VS Code](#debugging-tests)
-- [See a detailed HTML report of your tests](#test-reports)
-- [Run tests on CI](#running-tests-on-ci)
-- [See a trace view of your test with DOM snapshots](#viewing-test-traces)
+Get started by installing Playwright and generating a test to see it in action. Alternatively you can also get started and run your tests using the [CLI](./intro.md).
 
 ## Installation
 
-Install the [VS Code extension from the marketplace](https://marketplace.visualstudio.com/items?itemName=ms-playwright.playwright). Once installed, open the command panel and type "Install Playwright" and select "Test: Install Playwright". Choose the browsers you would like to run your tests on. These can be later configured in the `playwright.config.ts` file.
+Install the [VS Code extension from the marketplace](https://marketplace.visualstudio.com/items?itemName=ms-playwright.playwright).
 
+<img width="535" alt="image" src="https://user-images.githubusercontent.com/13063165/182146928-b2a46ce5-3008-409c-be10-d2b255bd5e91.jpeg"></img>
 
-<!-- <img width="535" alt="image" src="https://user-images.githubusercontent.com/13063165/177198887-de49ec12-a7a9-48c2-8d02-ad53ea312c91.png"></img> -->
+Once installed, open the command panel and type:
 
+```bash
+Install Playwright
+```
 
 <img width="538" alt="image" src="https://user-images.githubusercontent.com/13063165/177199115-ce90eb84-f12a-4b95-bd3a-17ff870fcec2.png"></img>
 
-For installing using the CLI see the [Getting Started (CLI)](./getting-started-cli.md) guide.
+Select "Test: Install Playwright" and Choose the browsers you would like to run your tests on. These can be later configured in the [playwright.config](./test-configuration.md) file. You can also choose if you would like to have a GitHub Actions setup to run your tests on CI.
 
-## Generating Tests with Codegen
 
-[CodeGen](./codegen.md) will auto generate your tests for you and is a great way to quickly get started. Click on the Testing icon in the left menu to open the testing sidebar. To record a test click on the record icon. This will create a `test-1.spec.ts` file as well as open up a browser window. As you record your user actions your test code will be generated in the newly created file.
-
-<img width="810" alt="image" src="https://user-images.githubusercontent.com/13063165/177197869-40b32235-ae7c-4a6e-8b7e-e69aea17ea1b.png"></img>
-
-As you hover over an element Playwright will highlight the element with the [selector](./selectors.md) shown underneath it. If you click the element [CodeGen](./codegen.md) will generate the test for you in the test file that was created.
-<img width="958" alt="image" src="https://user-images.githubusercontent.com/13063165/177199982-42dc316f-3438-48b1-a6a6-417be77be658.png"></img>
-
-To learn more about codegen please see the [Test Generator](./codegen.md) docs.
-
-## Writing Assertions
-
-Playwright Test uses the [expect](https://jestjs.io/docs/expect) library for test assertions. It extends it with the Playwright-specific matchers to achieve greater testing ergonomics.
-
-Learn more about [test assertions](./test-assertions.md).
-
-Here is a quick example of using them:
-
-```js tab=js-js
-// example.spec.js
-const { test, expect } = require("@playwright/test");
-
-test("my test", async ({ page }) => {
-  await page.goto("https://playwright.dev/");
-
-  // Expect a title "to contain" a substring.
-  await expect(page).toHaveTitle(/Playwright/);
-
-  // Expect an attribute "to be strictly equal" to the value.
-  await expect(page.locator("text=Get Started").first()).toHaveAttribute(
-    "href",
-    "/docs/intro"
-  );
-
-  await page.click("text=Get Started");
-  // Expect some text to be visible on the page.
-  await expect(page.locator("text=Introduction").first()).toBeVisible();
-});
-```
-
-```js tab=js-ts
-// example.spec.ts
-import { test, expect } from "@playwright/test";
-
-test("my test", async ({ page }) => {
-  await page.goto("https://playwright.dev/");
-
-  // Expect a title "to contain" a substring.
-  await expect(page).toHaveTitle(/Playwright/);
-
-  // Expect an attribute "to be strictly equal" to the value.
-  await expect(page.locator("text=Get Started").first()).toHaveAttribute(
-    "href",
-    "/docs/intro"
-  );
-
-  await page.click("text=Get Started");
-  // Expect some text to be visible on the page.
-  await expect(page.locator("text=Introduction").first()).toBeVisible();
-});
-```
-
-## Using test fixtures
-
-You noticed an argument `{ page }` that the test above has access to:
-
-```js tab=js-js
-test('basic test', async ({ page }) => {
-  ...
-```
-
-```js tab=js-ts
-test('basic test', async ({ page }) => {
-  ...
-```
-
-We call these arguments `fixtures`. Fixtures are objects that are created for each test run. Playwright Test comes loaded with those fixtures, and you can add your own fixtures as well. When running tests, Playwright Test looks at each test declaration, analyses the set of fixtures the test needs and prepares those fixtures specifically for the test.
-
-Here is a list of the pre-defined fixtures that you are likely to use most of the time:
-
-| Fixture     | Type             | Description                                                                                                                                        |
-| :---------- | :--------------- | :------------------------------------------------------------------------------------------------------------------------------------------------- |
-| page        | [Page]           | Isolated page for this test run.                                                                                                                   |
-| context     | [BrowserContext] | Isolated context for this test run. The `page` fixture belongs to this context as well. Learn how to [configure context](./test-configuration.md). |
-| browser     | [Browser]        | Browsers are shared across tests to optimize resources. Learn how to [configure browser](./test-configuration.md).                                 |
-| browserName | [string]         | The name of the browser currently running the test. Either `chromium`, `firefox` or `webkit`.                                                      |
-
-## Using test hooks
-
-You can use `test.beforeAll` and `test.afterAll` hooks to set up and tear down resources shared between tests. And you can use `test.beforeEach` and `test.afterEach` hooks to set up and tear down resources for each test individually.
-
-```js tab=js-js
-// example.spec.js
-const { test, expect } = require("@playwright/test");
-
-test.describe("feature foo", () => {
-  test.beforeEach(async ({ page }) => {
-    // Go to the starting url before each test.
-    await page.goto("https://playwright.dev/");
-  });
-
-  test("my test", async ({ page }) => {
-    // Assertions use the expect API.
-    await expect(page).toHaveURL("https://playwright.dev/");
-  });
-});
-```
-
-```js tab=js-ts
-// example.spec.ts
-import { test, expect } from "@playwright/test";
-
-test.describe("feature foo", () => {
-  test.beforeEach(async ({ page }) => {
-    // Go to the starting url before each test.
-    await page.goto("https://playwright.dev/");
-  });
-
-  test("my test", async ({ page }) => {
-    // Assertions use the expect API.
-    await expect(page).toHaveURL("https://playwright.dev/");
-  });
-});
-```
 
 ## Running Tests
 
 You can run a single test by clicking the green triangle next to your test block to run your test. Playwright will run through each line of the test and when it finishes you will see a green tick next to your test block as well as the time it took to run the test.
 
-<img width="813" alt="image" src="https://user-images.githubusercontent.com/13063165/177201109-e0a17553-88cc-496e-a717-9a60247db935.png"></img>
 
-View all tests in the testing sidebar and extend the tests by clicking on each test. Tests that have not been run will not have the green check next to them.
 
-<img width="812" alt="image" src="https://user-images.githubusercontent.com/13063165/177201231-f26e11da-2860-43fa-9a31-b04bba55d52e.png" />
+<img width="750" alt="image" src="https://user-images.githubusercontent.com/13063165/182153398-101bf809-deca-40f8-9ac7-314eab2ff119.png" />
 
-Run all tests by clicking on the white triangle as you hover over the tests in the testing sidebar.
+### View and Run All Tests
 
-<img width="252" alt="image" src="https://user-images.githubusercontent.com/13063165/178029941-d9555c43-0966-4699-8739-612a9664e604.png" />
+View all tests in the testing sidebar and extend the tests by clicking on each test. Tests that have not been run will not have the green check next to them. Run all tests by clicking on the white triangle as you hover over the tests in the testing sidebar.
+
+<img width="755" alt="image" src="https://user-images.githubusercontent.com/13063165/182154055-6ff7af95-3787-475e-b0c0-8aa521aaa31b.png" />
+
+
+### Run Tests on Specific Browsers
 
 The VS Code test runner runs your tests on the default browser of Chrome. To run on other/multiple browsers click the play button's dropdown and choose the option of "Select Default Profile" and select the browsers you wish to run your tests on.
 
-<img width="506" alt="image" src="https://user-images.githubusercontent.com/13063165/178030111-3c422349-a501-4190-9ad6-ec0bdc187b9e.png" />
+<img width="753" alt="image" src="https://user-images.githubusercontent.com/13063165/182154251-89f8d4f1-a9c3-42bc-9659-7db6412e96fe.png" />
 
 ## Debugging Tests
 
-With the VS Code extension you can debug your tests right in VS Code see error messages and create breakpoints. Click next to the line number so a red dot appears and then run the tests in debug mode by right clicking on the line next to the test you want to run. A browser window will open and the test will run and pause at where the breakpoint is set.
+With the VS Code extension you can debug your tests right in VS Code see error messages, create breakpoints and live debug your tests.
 
-<img width="1025" alt="image" src="https://user-images.githubusercontent.com/13063165/178027941-0d9d5f88-2426-43fb-b204-62a2add27415.png" />
+### Error Messages
 
- Modify your test right in VS Code while debugging and Playwright will highlight the selector you are modifying in the browser. You can step through the tests, pause the test and rerun the tests from the menu in VS Code.
+If your test fails VS Code will show you error messages right in the editor showing what was expected, what was received as well as a complete call log.
 
-<img width="1044" alt="image" src="https://user-images.githubusercontent.com/13063165/178029249-e0a85f53-b8d4-451f-b3e5-df62b0c57929.png" />
+<img width="848" alt="image" src="https://user-images.githubusercontent.com/13063165/182155225-d91ec237-f69e-4ace-9a5f-a149800aba75.png" />
 
-## Test Reports
+### Run in Debug Mode
 
-The [HTML Reporter](./html-reporter.md) shows you a full report of your tests allowing you to filter the report by browsers, passed tests, failed tests, skipped tests and flaky tests. You can click on each test and explore the tests errors as well as each step of the test. By default, the HTML report is opened automatically if some of the tests failed.
+To set a breakpoint click next to the line number where you want the breakpoint to be until a red dot appears. Run the tests in debug mode by right clicking on the line next to the test you want to run. A browser window will open and the test will run and pause at where the breakpoint is set.
 
-- Run your tests using the CLI
+<img width="847" alt="image" src="https://user-images.githubusercontent.com/13063165/182156149-f683f62d-9555-4ce2-93d2-e80de8087411.png" />
 
-  ```bash
-  npx playwright test
-  ```
-  
-- Show the HTML Report
 
-  ```bash
-  npx playwright show-report
-  ```
+### Live Debugging
 
-<img width="739" alt="image" src="https://user-images.githubusercontent.com/13063165/178003817-3bd2f088-4173-406c-a9e9-74c89181f381.png" />
+You can modify your test right in VS Code while debugging and Playwright will highlight the selector in the browser. This is a great way of seeing if the selector exits or if there is more than one result. You can step through the tests, pause the test and rerun the tests from the menu in VS Code.
 
-To learn more about the HTML Reporter please see the [HTML Reporter](./html-reporter.md) docs.
+<img width="858" alt="image" src="https://user-images.githubusercontent.com/13063165/182157241-c8da5eff-edbc-4ae1-80e3-8e42fa5fe659.png" />
 
-## Running Tests on CI
 
-Run your tests locally or on CI on each pull request with GitHub actions. Tests can be run on a local dev environment or on a staging URL. Checkout our guide for more options on [CI Configurations](./ci.md).
+## Generating Tests
 
-## Viewing Test Traces
+CodeGen will auto generate your tests for you as you perform actions in the browser and is a great way to quickly get started. The viewport for the browser window is set to a specific width and height. See the [configuration guide](./test-configuration.md) to change the viewport or emulate different environments.
 
-Playwright Trace Viewer is a GUI tool where you can explore recorded Playwright traces after the script has ran. See your test's DOM snapshot before and after the action item. View the test's timeline, log, source, network and console. Open traces locally or in your browser on [`trace.playwright.dev`](https://trace.playwright.dev).
+### Recording a Test
 
-<img width="1212" alt="Playwright Trace Viewer" src="https://user-images.githubusercontent.com/883973/120585896-6a1bca80-c3e7-11eb-951a-bd84002480f5.png"></img>
+To record a test click on the record icon. This will create a `test-1.spec.ts` file as well as open up a browser window.
 
-To learn more about the Trace Viewer please see the [Trace Viewer](./trace-viewer.md) docs.
+
+<img width="798" alt="image" src="https://user-images.githubusercontent.com/13063165/182149486-a30fbd3f-5e88-4ac2-b1df-4e33d4a893c7.png" />
+
+### Selector Highlighting
+
+As you interact with the page Codegen will generate the test for you in the newly created file in VS Code. When you hover over an element Playwright will highlight the element and show the [selector](./selectors.md) underneath it.
+
+<img width="860" alt="image" src="https://user-images.githubusercontent.com/13063165/182151374-03273172-38cd-4f27-add5-cb3d3cdc7bcd.png" />
+
+
+
+## What's next
+
+- [Write tests using web first assertions, page fixtures and locators](./writing-tests.md)
+- [See test reports](./running-tests.md#test-reports)
+- [See a trace of your tests](./trace-viewer.md)

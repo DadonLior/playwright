@@ -48,7 +48,7 @@ page.goto("https://example.com")
 ```
 
 ```csharp
-using var context = await Browser.NewContextAsync(new BrowserNewContextOptions
+using var context = await Browser.NewContextAsync(new()
 {
     HttpCredentials = new HttpCredentials
     {
@@ -113,7 +113,7 @@ var proxy = new Proxy
     Username = "user",
     Password = "pwd"
 };
-await using var browser = await BrowserType.LaunchAsync(new BrowserTypeLaunchOptions
+await using var browser = await BrowserType.LaunchAsync(new()
 {
     Proxy = proxy
 });
@@ -153,12 +153,12 @@ context = browser.new_context(proxy={"server": "http://myproxy.com:3128"})
 
 ```csharp
 var proxy = new Proxy { Server = "per-context" };
-await using var browser = await BrowserType.LaunchAsync(new BrowserTypeLaunchOptions
+await using var browser = await BrowserType.LaunchAsync(new()
 {
     // Browser proxy option is required for Chromium on Windows.
     Proxy = proxy
 });
-using var context = await Browser.NewContextAsync(new BrowserNewContextOptions
+using var context = await Browser.NewContextAsync(new()
 {
     Proxy = new Proxy { Server = "http://myproxy.com:3128" })
 });
@@ -259,35 +259,35 @@ Or wait for a network response after the button click:
 // Use a glob URL pattern
 const [response] = await Promise.all([
   page.waitForResponse('**/api/fetch_data'),
-  page.click('button#update'),
+  page.locator('button#update').click(),
 ]);
 ```
 
 ```java
 // Use a glob URL pattern
 Response response = page.waitForResponse("**/api/fetch_data", () -> {
-  page.click("button#update");
+  page.locator("button#update").click();
 });
 ```
 
 ```python async
 # Use a glob url pattern
 async with page.expect_response("**/api/fetch_data") as response_info:
-    await page.click("button#update")
+    await page.locator("button#update").click()
 response = await response_info.value
 ```
 
 ```python sync
 # Use a glob url pattern
 with page.expect_response("**/api/fetch_data") as response_info:
-    page.click("button#update")
+    page.locator("button#update").click()
 response = response_info.value
 ```
 
 ```csharp
 // Use a glob URL pattern
 var waitForResponseTask = page.WaitForResponseAsync("**/api/fetch_data");
-await page.ClickAsync("button#update");
+await page.Locator("button#update").ClickAsync();
 var response = await waitForResponseTask;
 ```
 
@@ -297,61 +297,61 @@ var response = await waitForResponseTask;
 // Use a RegExp
 const [response] = await Promise.all([
   page.waitForResponse(/\.jpeg$/),
-  page.click('button#update'),
+  page.locator('button#update').click(),
 ]);
 
 // Use a predicate taking a Response object
 const [response] = await Promise.all([
   page.waitForResponse(response => response.url().includes(token)),
-  page.click('button#update'),
+  page.locator('button#update').click(),
 ]);
 ```
 
 ```java
 // Use a RegExp
 Response response = page.waitForResponse(Pattern.compile("\\.jpeg$"), () -> {
-  page.click("button#update");
+  page.locator("button#update").click();
 });
 
 // Use a predicate taking a Response object
 Response response = page.waitForResponse(r -> r.url().contains(token), () -> {
-  page.click("button#update");
+  page.locator("button#update").click();
 });
 ```
 
 ```python async
 # Use a regular expression
 async with page.expect_response(re.compile(r"\.jpeg$")) as response_info:
-    await page.click("button#update")
+    await page.locator("button#update").click()
 response = await response_info.value
 
 # Use a predicate taking a response object
 async with page.expect_response(lambda response: token in response.url) as response_info:
-    await page.click("button#update")
+    await page.locator("button#update").click()
 response = await response_info.value
 ```
 
 ```python sync
 # Use a regular expression
 with page.expect_response(re.compile(r"\.jpeg$")) as response_info:
-    page.click("button#update")
+    page.locator("button#update").click()
 response = response_info.value
 
 # Use a predicate taking a response object
 with page.expect_response(lambda response: token in response.url) as response_info:
-    page.click("button#update")
+    page.locator("button#update").click()
 response = response_info.value
 ```
 
 ```csharp
 // Use a regular expression
 var waitForResponseTask = page.WaitForResponseAsync(new Regex("\\.jpeg$"));
-await page.ClickAsync("button#update");
+await page.Locator("button#update").ClickAsync();
 var response = await waitForResponseTask;
 
 // Use a predicate taking a Response object
 var waitForResponseTask = page.WaitForResponseAsync(r => r.Url.Contains(token));
-await page.ClickAsync("button#update");
+await page.Locator("button#update").ClickAsync();
 var response = await waitForResponseTask;
 ```
 
@@ -767,7 +767,7 @@ context.close()
 ```
 
 ```csharp
-var context = await browser.NewContextAsync(new () {
+var context = await browser.NewContextAsync(new() {
     RecordHarPath = "example.har",
     RecordHarUrlFilter = "**/api/**",
 });
@@ -869,5 +869,15 @@ page.WebSocket += (_, ws) =>
 - [`event: WebSocket.frameSent`]
 - [`event: WebSocket.frameReceived`]
 - [`event: WebSocket.close`]
+
+<br/>
+
+## Missing Network Events and Service Workers
+
+Playwright's built-in [`method: BrowserContext.route`] and [`method: Page.route`] allow your tests to natively route requests and perform mocking and interception.
+
+1. If you're using Playwright's native [`method: BrowserContext.route`] and [`method: Page.route`], and it appears network events are missing, disable Service Workers by setting [`option: Browser.newContext.serviceWorkers`] to `'block'`.
+1. It might be that you are using a mock tool such as Mock Service Worker (MSW). While this tool works out of the box for mocking responses, it adds its own Service Worker that takes over the network requests, hence making them invisible to [`method: BrowserContext.route`] and [`method: Page.route`]. If you are interested in both network testing and mocking, consider using built-in [`method: BrowserContext.route`] and [`method: Page.route`] for [response mocking](#handle-requests).
+1. If you're interested in not solely using Service Workers for testing and network mocking, but in routing and listening for requests made by Service Workers themselves, please see [this experimental feature](https://github.com/microsoft/playwright/issues/15684).
 
 <br/>

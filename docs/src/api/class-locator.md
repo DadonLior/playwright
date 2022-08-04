@@ -29,7 +29,7 @@ Returns an array of `node.textContent` values for all matching nodes.
 This method returns the bounding box of the element, or `null` if the element is not visible. The bounding box is
 calculated relative to the main frame viewport - which is usually the same as the browser window.
 
-Scrolling affects the returned bonding box, similarly to
+Scrolling affects the returned bounding box, similarly to
 [Element.getBoundingClientRect](https://developer.mozilla.org/en-US/docs/Web/API/Element/getBoundingClientRect). That
 means `x` and/or `y` may be negative.
 
@@ -472,7 +472,7 @@ rowLocator
     .screenshot();
 ```
 ```python async
-row_locator = page.lsocator("tr")
+row_locator = page.locator("tr")
 # ...
 await row_locator
     .filter(has_text="text in column 1")
@@ -480,7 +480,7 @@ await row_locator
     .screenshot()
 ```
 ```python sync
-row_locator = page.lsocator("tr")
+row_locator = page.locator("tr")
 # ...
 row_locator
     .filter(has_text="text in column 1")

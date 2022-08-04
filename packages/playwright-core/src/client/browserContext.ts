@@ -74,7 +74,7 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
       this._browser = parent;
     this._isChromium = this._browser?._name === 'chromium';
     this.tracing = Tracing.from(initializer.tracing);
-    this.request = APIRequestContext.from(initializer.APIRequestContext);
+    this.request = APIRequestContext.from(initializer.requestContext);
 
     this._channel.on('bindingCall', ({ binding }) => this._onBinding(BindingCall.from(binding)));
     this._channel.on('close', () => this._onClose());
@@ -173,14 +173,14 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
   setDefaultNavigationTimeout(timeout: number) {
     this._timeoutSettings.setDefaultNavigationTimeout(timeout);
     this._wrapApiCall(async () => {
-      this._channel.setDefaultNavigationTimeoutNoReply({ timeout });
+      this._channel.setDefaultNavigationTimeoutNoReply({ timeout }).catch(() => {});
     }, true);
   }
 
   setDefaultTimeout(timeout: number) {
     this._timeoutSettings.setDefaultTimeout(timeout);
     this._wrapApiCall(async () => {
-      this._channel.setDefaultTimeoutNoReply({ timeout });
+      this._channel.setDefaultTimeoutNoReply({ timeout }).catch(() => {});
     }, true);
   }
 
@@ -244,21 +244,9 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     await this._channel.addInitScript({ source });
   }
 
-  async _removeInitScripts() {
-    await this._channel.removeInitScripts();
-  }
-
   async exposeBinding(name: string, callback: (source: structs.BindingSource, ...args: any[]) => any, options: { handle?: boolean } = {}): Promise<void> {
     await this._channel.exposeBinding({ name, needsHandle: options.handle });
     this._bindings.set(name, callback);
-  }
-
-  async _removeExposedBindings() {
-    for (const key of this._bindings.keys()) {
-      if (!key.startsWith('__pw_'))
-        this._bindings.delete(key);
-    }
-    await this._channel.removeExposedBindings();
   }
 
   async exposeFunction(name: string, callback: Function): Promise<void> {
@@ -299,11 +287,6 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
     this._routes = this._routes.filter(route => route.url !== url || (handler && route.handler !== handler));
     if (!this._routes.length)
       await this._disableInterception();
-  }
-
-  async _unrouteAll() {
-    this._routes = [];
-    await this._disableInterception();
   }
 
   private async _disableInterception() {
@@ -394,12 +377,6 @@ export class BrowserContext extends ChannelOwner<channels.BrowserContextChannel>
       outputFile?: string
   }) {
     await this._channel.recorderSupplementEnable(params);
-  }
-
-  async _resetForReuse() {
-    await this._unrouteAll();
-    await this._removeInitScripts();
-    await this._removeExposedBindings();
   }
 }
 

@@ -21,10 +21,10 @@ import { playwrightTest, expect } from '../config/browserTest';
 // Use something worker-scoped (e.g. expectScopeState) forces a new worker for this file.
 // Otherwise, a browser launched for other tests in this worker will affect the expectations.
 const it = playwrightTest.extend<{}, { expectScopeState: (object: any, golden: any) => void }>({
-  expectScopeState: [ async ({ toImpl }, use) => {
+  expectScopeState: [ async ({ toImplInWorkerScope }, use) => {
     await use((object, golden) => {
       golden = trimGuids(golden);
-      const remoteRoot = toImpl();
+      const remoteRoot = toImplInWorkerScope();
       const remoteState = trimGuids(remoteRoot._debugScopeState());
       const localRoot = object._connection._rootObject;
       const localState = trimGuids(localRoot._debugScopeState());
@@ -69,13 +69,14 @@ it('should scope context handles', async ({ browserType, server, expectScopeStat
       { _guid: 'browser-type', objects: [
         { _guid: 'browser', objects: [
           { _guid: 'browser-context', objects: [
-            { _guid: 'frame', objects: [] },
-            { _guid: 'page', objects: [] },
+            { _guid: 'page', objects: [
+              { _guid: 'frame', objects: [] },
+            ] },
             { _guid: 'request', objects: [] },
+            { _guid: 'request-context', objects: [] },
             { _guid: 'response', objects: [] },
+            { _guid: 'tracing', objects: [] }
           ] },
-          { _guid: 'fetchRequest', objects: [] },
-          { _guid: 'Tracing', objects: [] }
         ] },
       ] },
       { _guid: 'electron', objects: [] },
@@ -163,9 +164,10 @@ it('should scope browser handles', async ({ browserType, expectScopeState }) => 
       { _guid: 'browser-type', objects: [
         {
           _guid: 'browser', objects: [
-            { _guid: 'browser-context', objects: [] },
-            { _guid: 'fetchRequest', objects: [] },
-            { _guid: 'Tracing', objects: [] }
+            { _guid: 'browser-context', objects: [
+              { _guid: 'request-context', objects: [] },
+              { _guid: 'tracing', objects: [] },
+            ] },
           ]
         },
       ]
